@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>참가자 카드</title>
+  <script src="app-config.js?v=7"></script>
+  <script src="api.js?v=7"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #f4f6f9; color: #1d232b; }
+    .wrap { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 18px rgba(0,0,0,.08); padding: 28px 20px; text-align: center; }
+    .ev { color: #6b7580; font-size: 14px; margin-bottom: 18px; }
+    .org { font-size: 18px; word-break: keep-all; }
+    .name { font-size: 36px; font-weight: 800; margin: 8px 0; letter-spacing: .04em; }
+    .title { font-size: 17px; color: #444; }
+    .contacts { margin-top: 20px; text-align: left; border-top: 1px solid #eef0f3; padding-top: 14px; }
+    .contacts a { display: flex; justify-content: space-between; padding: 12px 4px; border-bottom: 1px solid #f1f3f5; color: #1d232b; text-decoration: none; font-size: 16px; }
+    .contacts a span { color: #6b7580; }
+    .contacts a b { color: #2f6fed; }
+    .private { margin-top: 16px; color: #6b7580; font-size: 14px; }
+    .staff { margin-top: 18px; background: #fff; border-radius: 16px; padding: 16px; }
+    select, input { width: 100%; font-size: 17px; padding: 12px; border: 1px solid #cfd6de; border-radius: 10px; margin-bottom: 10px; background: #fff; }
+    button { width: 100%; font-size: 18px; font-weight: 700; padding: 15px; border: 0; border-radius: 12px; background: #1f9d55; color: #fff; }
+    button:disabled { opacity: .5; }
+    .msg { margin-top: 10px; font-size: 15px; min-height: 1.2em; text-align: center; }
+    .ok { color: #17803f; } .bad { color: #dc2626; }
+    .muted { color: #6b7580; font-size: 13px; }
+    details summary { cursor: pointer; color: #6b7580; font-size: 14px; }
+    .spinner { width: 36px; height: 36px; border: 4px solid #dde1e6; border-top-color: #2f6fed; border-radius: 50%; margin: 60px auto 16px; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="spinner"></div></div>
+<script>
+const $ = id => document.getElementById(id);
+const store = {
+  get(k) { try { return localStorage.getItem('badgecard.' + k) || ''; } catch (e) { return ''; } },
+  set(k, v) { try { localStorage.setItem('badgecard.' + k, v); } catch (e) {} },
+};
+const PID = new URLSearchParams(location.search).get('p') || '';
+
+function message(icon, title, text) {
+  $('app').innerHTML = `<div class="card"><div style="font-size:48px">${icon}</div><h2>${esc(title)}</h2><p class="muted">${esc(text)}</p></div>`;
+}
+
+async function load() {
+  let D;
+  try { D = (await BadgeAPI.get('card', { p: PID })).card; }
+  catch (e) { return message('📶', '불러오지 못했습니다', e.message); }
+  if (!D) return message('❓', '참가자를 찾을 수 없습니다', '명찰의 QR을 다시 찍어 주세요.');
+  document.title = D.name + ' · ' + D.event;
+
+  const link = c => c.type === 'tel' ? 'tel:' + c.value.replace(/[^0-9+]/g, '') : (c.type === 'email' ? 'mailto:' + c.value : '#');
+  let html = `<div class="card">
+    <div class="ev">${esc(D.event)}</div>
+    <div class="org">${esc(D.org)}</div>
+    <div class="name">${esc(D.name)}</div>
+    <div class="title">${esc(D.title)}</div>
+    ${D.contacts.length
+      ? '<div class="contacts">' + D.contacts.map(c => `<a href="${esc(link(c))}"><span>${esc(c.label)}</span><b>${esc(c.value)}</b></a>`).join('') + '</div>'
+      : '<div class="private">연락처를 공개하지 않은 참가자입니다.</div>'}
+  </div>`;
+  if (D.attendance) {
+    const pin = store.get('pin'), session = store.get('session');
+    html += `<details class="staff" ${pin ? 'open' : ''}>
+      <summary>스태프 · 출석 체크</summary>
+      <div style="margin-top:12px">
+        ${D.sessions.length ? `<select id="session"><option value="">세션 선택</option>${D.sessions.map(s => `<option ${s === session ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>` : ''}
+        <input id="pin" type="password" inputmode="numeric" placeholder="스태프 PIN" value="${esc(pin)}">
+        <button id="btn-att">✔ ${esc(D.name)} 출석 체크</button>
+        <div class="msg" id="msg"></div>
+        <div class="muted">PIN과 세션은 이 휴대폰에 기억되어 다음 명찰부터는 버튼만 누르면 됩니다.</div>
+      </div>
+    </details>`;
+  }
+  $('app').innerHTML = html;
+  if (!D.attendance) return;
+  $('btn-att').onclick = async () => {
+    const s = $('session') ? $('session').value : '', p = $('pin').value.trim(), btn = $('btn-att');
+    if (D.sessions.length && !s) { $('msg').className = 'msg bad'; $('msg').textContent = '세션을 선택하세요.'; return; }
+    btn.disabled = true;
+    try {
+      const r = await BadgeAPI.post('attend', { id: D.id, session: s, pin: p });
+      store.set('pin', p); store.set('session', s);
+      $('msg').className = 'msg ok';
+      $('msg').textContent = r.duplicate ? `이미 ${r.session} 출석으로 기록되어 있습니다.` : `✅ ${r.name} · ${r.session} 출석 완료`;
+    } catch (e) {
+      $('msg').className = 'msg bad';
+      $('msg').textContent = e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+}
+load();
+</script>
+</body>
+</html>

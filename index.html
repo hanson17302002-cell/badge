@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>현장 등록</title>
+  <script src="app-config.js?v=7"></script>
+  <script src="api.js?v=7"></script>
+  <style>
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; font-family: -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; background: #f4f6f9; color: #1d232b; }
+    .wrap { max-width: 480px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 22px; margin: 8px 0 4px; line-height: 1.35; }
+    .sub { color: #6b7580; margin: 0 0 20px; font-size: 15px; }
+    label.f { display: block; font-weight: 600; margin: 18px 0 6px; font-size: 15px; }
+    .req { color: #dc2626; }
+    input[type=text], input[type=tel], input[type=email], select { width: 100%; font-size: 18px; padding: 14px; border: 1px solid #cfd6de; border-radius: 10px; background: #fff; color: #1d232b; -webkit-appearance: none; appearance: none; }
+    input:focus, select:focus { outline: 2px solid #2f6fed; border-color: #2f6fed; }
+    .consent { margin-top: 22px; background: #fff; border: 1px solid #dde1e6; border-radius: 10px; padding: 14px; font-size: 14px; line-height: 1.7; }
+    .consent .agree { display: flex; gap: 10px; align-items: center; margin-top: 10px; font-size: 16px; font-weight: 600; }
+    .consent input, .share input { width: 22px; height: 22px; flex: 0 0 auto; }
+    .share { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; font-size: 15px; background: #fff; border: 1px solid #dde1e6; border-radius: 10px; padding: 12px; }
+    .share small { display: block; color: #6b7580; font-size: 13px; }
+    button { width: 100%; font-size: 18px; font-weight: 700; padding: 16px; border: 0; border-radius: 12px; margin-top: 18px; background: #2f6fed; color: #fff; cursor: pointer; }
+    button.ghost { background: #fff; color: #1d232b; border: 1px solid #cfd6de; }
+    button:disabled { opacity: .5; }
+    .err { color: #dc2626; margin-top: 12px; font-size: 15px; min-height: 1em; }
+    .preview { background: #fff; border: 2px dashed #aab4c0; border-radius: 12px; padding: 32px 16px; text-align: center; }
+    .pv-org { font-size: 18px; word-break: keep-all; }
+    .pv-name { font-size: 38px; font-weight: 800; margin: 12px 0; letter-spacing: .05em; }
+    .pv-title { font-size: 18px; color: #444; }
+    .pv-extra { margin-top: 14px; font-size: 14px; color: #6b7580; line-height: 1.6; }
+    .center { text-align: center; padding-top: 48px; }
+    .center .icon { font-size: 64px; }
+    .spinner { width: 36px; height: 36px; border: 4px solid #dde1e6; border-top-color: #2f6fed; border-radius: 50%; margin: 60px auto 16px; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div id="step-loading" class="center"><div class="spinner"></div><p class="sub">불러오는 중…</p></div>
+
+  <div id="step-closed" class="center" hidden>
+    <div class="icon">📭</div>
+    <h1 id="closed-title"></h1>
+    <p class="sub" id="closed-msg"></p>
+    <button class="ghost" id="btn-retry" hidden>다시 시도</button>
+  </div>
+
+  <!-- 1단계: 입력 -->
+  <div id="step-form" hidden>
+    <h1 id="ev-name"></h1>
+    <p class="sub">현장 등록 · 사전등록하신 분도 성함을 입력하시면 바로 명찰이 나옵니다</p>
+    <div id="fields"></div>
+    <div class="consent">
+      <b>개인정보 수집·이용 동의</b><br>
+      · 수집 항목: <span id="consent-items"></span><br>
+      · 이용 목적: 명찰 제작 및 행사 참석 확인<br>
+      · 보유 기간: <span id="retention"></span><br>
+      · 동의하지 않으실 수 있으며, 이 경우 현장 데스크에서 등록을 도와드립니다.
+      <label class="agree"><input type="checkbox" id="consent"> 위 내용에 동의합니다 (필수)</label>
+    </div>
+    <label class="share" id="share-box" hidden><input type="checkbox" id="share">
+      <span>명찰 QR로 명함 교환 허용 (선택)<small>다른 참가자가 내 명찰의 QR을 찍으면 <span id="share-items"></span>이(가) 보입니다.</small></span></label>
+    <div class="err" id="err1"></div>
+    <button id="btn-next">다음 (명찰 미리보기)</button>
+  </div>
+
+  <!-- 2단계: 미리보기 확인 -->
+  <div id="step-preview" hidden>
+    <h1>명찰에 이렇게 출력됩니다</h1>
+    <p class="sub">오타가 없는지 확인해 주세요</p>
+    <div class="preview">
+      <div class="pv-org" id="pv-org"></div>
+      <div class="pv-name" id="pv-name"></div>
+      <div class="pv-title" id="pv-title"></div>
+      <div class="pv-extra" id="pv-extra"></div>
+    </div>
+    <div class="err" id="err2"></div>
+    <button id="btn-submit">이대로 등록하기</button>
+    <button class="ghost" id="btn-back">수정하기</button>
+  </div>
+
+  <!-- 3단계: 완료 -->
+  <div id="step-done" class="center" hidden>
+    <div class="icon" id="done-icon">✅</div>
+    <h1 id="done-title">등록이 완료되었습니다</h1>
+    <p class="sub" id="done-msg"></p>
+    <button class="ghost" id="btn-again">다른 분 등록하기</button>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const STEPS = ['step-loading', 'step-closed', 'step-form', 'step-preview', 'step-done'];
+const show = step => STEPS.forEach(s => { $(s).hidden = s !== step; });
+const EVENT_PARAM = new URLSearchParams(location.search).get('e') || '';
+let EVENT = null, FORM = null, BASE = [], EXTRA = [];
+
+async function load() {
+  show('step-loading');
+  try {
+    const j = await BadgeAPI.get('formInfo', { e: EVENT_PARAM });
+    if (!j.event) return closed('행사를 찾을 수 없습니다', 'QR 코드를 다시 찍거나 현장 데스크에 문의해 주세요.');
+    EVENT = j.event; FORM = j.form;
+    document.title = EVENT.name + ' 현장등록';
+    if (EVENT.closed) return closed(EVENT.name, '등록이 마감된 행사입니다. 현장 데스크에 문의해 주세요.');
+    $('ev-name').textContent = EVENT.name;
+    $('retention').textContent = j.retention;
+    build();
+    show('step-form');
+  } catch (e) {
+    closed('잠시 연결이 원활하지 않습니다', e.message, true);
+  }
+}
+
+function closed(title, msg, retry) {
+  $('closed-title').textContent = title;
+  $('closed-msg').textContent = msg;
+  $('btn-retry').hidden = !retry;
+  show('step-closed');
+}
+$('btn-retry').onclick = load;
+
+// 입력 항목 구성: 소속 · 성명 · 직책 (행사 설정에 따라 필수/선택/숨김) + 추가 항목
+function build() {
+  BASE = [
+    { id: 'org', label: '소속', mode: FORM.org, max: 40, ph: '예: ○○주식회사', ac: 'organization' },
+    { id: 'name', label: '성명', mode: 'required', max: 20, ph: '예: 홍길동', ac: 'name' },
+    { id: 'title', label: '직책', mode: FORM.title, max: 20, ph: '예: 대표', ac: 'organization-title' },
+  ].filter(f => f.mode !== 'hidden');
+  EXTRA = FORM.fields || [];
+  const star = req => req ? ' <span class="req">*</span>' : '';
+  let html = BASE.map(f => `<label class="f" for="f-${f.id}">${f.label}${star(f.mode === 'required')}</label>
+    <input id="f-${f.id}" type="text" maxlength="${f.max}" autocomplete="${f.ac}" placeholder="${f.ph}">`).join('');
+  html += EXTRA.map(f => {
+    const lab = `<label class="f" for="x-${esc(f.id)}">${esc(f.label)}${star(f.required)}</label>`;
+    if (f.type === 'select') {
+      return lab + `<select id="x-${esc(f.id)}"><option value="">선택하세요</option>${(f.options || []).map(o => `<option>${esc(o)}</option>`).join('')}</select>`;
+    }
+    const type = f.type === 'tel' ? 'tel' : (f.type === 'email' ? 'email' : 'text');
+    return lab + `<input id="x-${esc(f.id)}" type="${type}" maxlength="100"${type === 'tel' ? ' inputmode="tel" autocomplete="tel"' : ''}${type === 'email' ? ' autocomplete="email"' : ''}>`;
+  }).join('');
+  $('fields').innerHTML = html;
+  $('consent-items').textContent = BASE.map(f => f.label).concat(EXTRA.map(f => f.label)).join(', ');
+  const shareable = EXTRA.filter(f => f.share);
+  $('share-box').hidden = !shareable.length;
+  $('share-items').textContent = ['성명', '소속', '직책'].concat(shareable.map(f => f.label)).join(' · ');
+}
+
+const val = id => { const el = $(id); return el ? el.value.replace(/\s+/g, ' ').trim() : ''; };
+const collect = () => {
+  const extra = {};
+  EXTRA.forEach(f => { extra[f.id] = val('x-' + f.id); });
+  return { org: val('f-org'), name: val('f-name'), title: val('f-title'), extra };
+};
+
+function fail1(msg, focusId) {
+  $('err1').textContent = msg;
+  if (focusId && $(focusId)) $(focusId).focus();
+}
+
+$('btn-next').onclick = () => {
+  $('err1').textContent = '';
+  const d = collect();
+  for (const f of BASE) if (f.mode === 'required' && !d[f.id]) return fail1(f.label + '을(를) 입력해 주세요.', 'f-' + f.id);
+  for (const f of EXTRA) {
+    const v = d.extra[f.id];
+    if (f.required && !v) return fail1(f.label + '을(를) 입력해 주세요.', 'x-' + f.id);
+    if (v && f.type === 'email' && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) return fail1(f.label + ' 형식을 확인해 주세요.', 'x-' + f.id);
+    if (v && f.type === 'tel' && !/^[0-9+\-\s()]{7,}$/.test(v)) return fail1(f.label + ' 형식을 확인해 주세요.', 'x-' + f.id);
+  }
+  if (!$('consent').checked) return fail1('개인정보 수집·이용에 동의해 주세요.');
+  $('pv-org').textContent = d.org;
+  $('pv-name').textContent = d.name;
+  $('pv-title').textContent = d.title;
+  $('pv-extra').innerHTML = EXTRA.filter(f => d.extra[f.id]).map(f => `${esc(f.label)}: ${esc(d.extra[f.id])}`).join('<br>');
+  $('err2').textContent = '';
+  show('step-preview');
+  window.scrollTo(0, 0);
+};
+
+$('btn-back').onclick = () => show('step-form');
+
+$('btn-submit').onclick = async () => {
+  const btn = $('btn-submit');
+  btn.disabled = true;
+  btn.textContent = '등록 중…';
+  const d = collect();
+  try {
+    const res = await BadgeAPI.post('register', {
+      eventId: EVENT.id, org: d.org, name: d.name, title: d.title, extra: d.extra,
+      consent: $('consent').checked, share: $('share').checked,
+    });
+    let icon = '✅', title = '등록이 완료되었습니다', msg = res.name + '님, 데스크에서 명찰을 받아 가세요.';
+    if (res.checkin) { title = '사전등록이 확인되었습니다'; msg = res.name + '님, 반갑습니다! 명찰이 곧 출력됩니다. 데스크에서 받아 가세요.'; }
+    if (res.duplicate) { msg = res.name + '님은 이미 등록되어 명찰을 출력하고 있습니다. 데스크에서 받아 가세요.'; }
+    if (res.already) { icon = 'ℹ️'; title = '이미 명찰이 출력되었습니다'; msg = res.name + '님의 명찰은 이미 출력되었습니다. 분실하셨다면 데스크에 말씀해 주세요.'; }
+    $('done-icon').textContent = icon;
+    $('done-title').textContent = title;
+    $('done-msg').textContent = msg;
+    show('step-done');
+  } catch (e) {
+    $('err2').textContent = e.message + ' 다시 시도하거나 데스크에 문의해 주세요.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '이대로 등록하기';
+  }
+};
+
+$('btn-again').onclick = () => {
+  document.querySelectorAll('#fields input, #fields select').forEach(el => { el.value = ''; });
+  $('consent').checked = false;
+  $('share').checked = false;
+  show('step-form');
+  window.scrollTo(0, 0);
+};
+
+load();
+</script>
+</body>
+</html>
