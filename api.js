@@ -21,7 +21,8 @@
   }
   global.BadgeAPI = {
     get(action, params) {
-      const q = Object.entries(Object.assign({ action }, params || {})).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+      // action을 맨 뒤에: 광고 차단기가 '?action=…&' 로 시작하는 주소를 막는 경우가 있음
+      const q = Object.entries(Object.assign({}, params || {}, { action })).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
       return call(global.BADGE_API + '?' + q);
     },
     // text/plain 으로 보내야 CORS 사전요청 없이 Apps Script에 전달됨
