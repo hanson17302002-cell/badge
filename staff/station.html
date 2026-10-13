@@ -1,0 +1,1495 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>명찰 출력 스테이션</title>
+<script src="config.js?v=20261013a"></script>
+<script src="gate.js?v=20261013a"></script>
+<script src="badge-render.js?v=20261013a"></script>
+<style>
+  :root { --bg:#f2f4f7; --card:#fff; --line:#e1e5ea; --line2:#eef1f4; --text:#1b2129; --muted:#4f5a66; --faint:#7b8794;
+          --accent:#2563eb; --accent-bg:#eaf1ff; --ok:#15803d; --ok-bg:#e7f6ec; --warn:#b45309; --warn-bg:#fff5e1;
+          --bad:#c62828; --bad-bg:#fdecec; --idle-bg:#eef1f4; }
+  * { box-sizing: border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; background:var(--bg); color:var(--text); font-size:15px; line-height:1.5; }
+  button, .btnlike { font:inherit; font-size:14px; padding:8px 14px; border:1px solid #cdd4dc; border-radius:9px; background:#fff; color:var(--text); cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  button:hover, .btnlike:hover { border-color:#98a3b0; background:#fafbfc; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; }
+  button.primary:hover { background:#1d4ed8; }
+  button.danger { color:var(--bad); border-color:#efc2c2; }
+  button.sm { padding:4px 10px; font-size:13px; border-radius:7px; }
+  button.ghost { border-color:transparent; background:transparent; }
+  button.ghost:hover { background:#eef1f4; }
+
+  /* 상단 */
+  header { display:flex; align-items:center; gap:10px; padding:10px 18px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header .logo { font-size:22px; }
+  header select { font:inherit; font-size:17px; font-weight:700; padding:7px 12px; border-radius:9px; border:1px solid #cdd4dc; background:#fff; color:var(--text); max-width:min(520px, 60vw); }
+  header .grow { flex:1; }
+  header .sep { width:1px; height:26px; background:var(--line); margin:0 2px; }
+
+  /* 상태 표시줄 */
+  .statusbar { display:flex; align-items:center; gap:16px; padding:16px 22px; border-bottom:1px solid var(--line); transition:background .3s; flex-wrap:wrap; }
+  .statusbar .ico { font-size:30px; line-height:1; width:40px; text-align:center; }
+  .statusbar .txt { flex:1; min-width:240px; }
+  .statusbar .ttl { font-size:22px; font-weight:800; }
+  .statusbar .dt { font-size:14.5px; margin-top:2px; }
+  .statusbar .acts { display:flex; gap:8px; flex-wrap:wrap; }
+  .statusbar .acts button { font-size:15px; padding:10px 18px; }
+  .st-ok { background:var(--ok-bg); color:var(--ok); }
+  .st-warn { background:var(--warn-bg); color:var(--warn); }
+  .st-bad { background:var(--bad-bg); color:var(--bad); }
+  .st-idle { background:var(--idle-bg); color:var(--muted); }
+  .statusbar .meta { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  .chip { font-size:12.5px; padding:2px 10px; border-radius:999px; background:rgba(255,255,255,.75); color:var(--muted); border:1px solid rgba(0,0,0,.06); }
+  .chip:empty { display:none; }
+  .pulse { animation:pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity:.45; } }
+
+  /* 본문 */
+  main { display:grid; grid-template-columns: 340px minmax(0,1fr) 300px; gap:16px; padding:16px 18px 40px; align-items:start; }
+  @media (max-width:1250px) { main { grid-template-columns: 340px minmax(0,1fr); } main > .col-side { grid-column:1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:16px; } }
+  @media (max-width:820px) { main { grid-template-columns:1fr; } main > .col-side { grid-template-columns:1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin-bottom:16px; }
+  .col-side .card { margin-bottom:16px; }
+  h2 { font-size:17px; margin:0 0 12px; display:flex; align-items:baseline; gap:6px; }
+  h2 .big { font-size:24px; color:var(--accent); margin-left:4px; }
+  h2 .unit { font-size:14px; color:var(--muted); font-weight:400; }
+  h2 .count { margin-left:auto; font-weight:400; color:var(--muted); font-size:13.5px; }
+  .list { list-style:none; margin:0; padding:0; max-height:380px; overflow:auto; }
+  .list li { display:flex; align-items:center; gap:10px; padding:10px 2px; border-top:1px solid var(--line2); }
+  .list li:first-child { border-top:0; }
+  .list .who { flex:1; min-width:0; }
+  .list .who b { font-size:16px; }
+  .list .who small { color:var(--muted); display:block; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .list .who .when { color:var(--faint); }
+  .empty { color:var(--faint); padding:14px 2px; text-align:center; display:block !important; }
+  .tag { font-size:12.5px; padding:3px 10px; border-radius:7px; background:#eef1f4; color:var(--muted); white-space:nowrap; font-weight:600; }
+  .tag.대기 { background:var(--accent-bg); color:var(--accent); } .tag.출력완료 { background:var(--ok-bg); color:var(--ok); }
+  .tag.제외 { background:#f1f1f1; color:#888; } .tag.사전등록 { background:var(--warn-bg); color:var(--warn); }
+  .tag.now { background:var(--accent); color:#fff; }
+  .field { display:block; margin-bottom:10px; }
+  .field span { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; font-weight:600; }
+  .field input, .field select { width:100%; font:inherit; font-size:16px; padding:9px 11px; border:1px solid #cdd4dc; border-radius:9px; }
+  .field input:focus, .search input:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:var(--accent); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .row > * { flex:1; }
+  #btn-manual { width:100%; justify-content:center; font-size:16px; padding:12px; }
+  .note { font-size:13px; color:var(--muted); margin-top:8px; min-height:1.3em; }
+  .note.ok { color:var(--ok); font-weight:600; } .note.bad { color:var(--bad); font-weight:600; }
+  .search { position:relative; }
+  .search input { width:100%; font:inherit; font-size:16px; padding:10px 12px 10px 38px; border:1px solid #cdd4dc; border-radius:10px; }
+  .search::before { content:"🔍"; position:absolute; left:12px; top:10px; font-size:15px; opacity:.6; }
+  .filters { display:flex; gap:6px; flex-wrap:wrap; margin:10px 0 6px; }
+  .filters button { font-size:13px; padding:4px 12px; border-radius:999px; }
+  .filters button.on { background:var(--text); color:#fff; border-color:var(--text); }
+  #all-list { max-height:calc(100vh - 330px); min-height:260px; }
+
+  /* 오른쪽: 라벨지 · 미리보기 */
+  .sheet-wrap { display:flex; gap:14px; align-items:flex-start; }
+  .sheet { background:#fff; border:1px solid #c3cad3; position:relative; flex:none; border-radius:2px; }
+  .sheet .cell { position:absolute; border:1.5px dashed #a7b0bb; border-radius:3px; display:flex; align-items:center; justify-content:center;
+                 font-weight:700; font-size:12px; color:#a7b0bb; cursor:pointer; user-select:none; }
+  .sheet .cell.used { background:#dfe3e8; border-style:solid; border-color:#c3cad3; color:#9aa4b0; }
+  .sheet .cell.next { border-color:var(--accent); border-style:solid; color:var(--accent); background:var(--accent-bg); }
+  .sheet-info .left { font-size:28px; font-weight:800; line-height:1.1; }
+  .sheet-info .left small { font-size:15px; color:var(--muted); font-weight:400; }
+  .sheet-info p { font-size:13px; color:var(--muted); margin:6px 0 10px; }
+  .preview-box { text-align:center; }
+  .preview-box h2 { text-align:left; }
+  .preview-box .cap { font-size:13px; color:var(--muted); margin-top:8px; }
+  #badge-preview { display:inline-block; box-shadow:0 2px 10px rgba(0,0,0,.15); background:#fff; }
+  .demo-bar { background:#fff8db; border:1px solid #f1d98a; padding:10px 14px; border-radius:12px; margin:12px 18px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+
+  /* 창 (행사 준비 / 행사 후 / 설정) */
+  dialog { border:0; border-radius:16px; padding:0; width:min(660px, 94vw); box-shadow:0 18px 50px rgba(0,0,0,.25); color:var(--text); }
+  dialog::backdrop { background:rgba(15,20,27,.45); }
+  dialog .dlg { padding:20px 22px; max-height:88vh; overflow:auto; }
+  dialog h3 { margin:0 0 4px; font-size:20px; display:flex; align-items:center; gap:8px; }
+  dialog h3 .x { margin-left:auto; font-size:16px; }
+  dialog .sub { color:var(--muted); font-size:14px; margin:0 0 14px; }
+  dialog fieldset { border:1px solid var(--line); border-radius:12px; margin:0 0 12px; padding:12px 14px; }
+  dialog legend { font-weight:700; padding:0 4px; }
+  .dlg-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; flex-wrap:wrap; }
+  .steps { list-style:none; margin:0; padding:0; }
+  .steps li { display:flex; gap:14px; align-items:center; padding:14px 4px; border-top:1px solid var(--line2); }
+  .steps .chk { width:30px; height:30px; flex:none; border-radius:50%; border:2px solid #c3cad3; display:flex; align-items:center; justify-content:center;
+                font-size:15px; font-weight:800; color:transparent; cursor:pointer; background:#fff; padding:0; }
+  .steps li.done .chk { background:var(--ok); border-color:var(--ok); color:#fff; }
+  .steps .body { flex:1; min-width:0; }
+  .steps .body b { font-size:16px; display:block; }
+  .steps .body small { color:var(--muted); font-size:13.5px; }
+  .steps li.done .body b { color:var(--muted); }
+  .steps .opt { font-size:12px; color:var(--faint); font-weight:400; margin-left:4px; }
+  .steps .acts { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+  .steps li.danger-zone { background:#fff8f8; border-radius:12px; padding:14px 12px; margin-top:10px; border:1px solid #f5d5d5; }
+  .steps .num { width:30px; height:30px; flex:none; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; border:2px solid; }
+  #conn-result { font-size:13px; margin-left:8px; }
+  .imp-sum { display:flex; gap:8px; flex-wrap:wrap; margin:0 0 10px; }
+  .imp-sum span { padding:4px 10px; border-radius:999px; background:#eef0f3; font-size:13px; }
+  .imp-sum .add { background:var(--ok-bg); color:var(--ok); font-weight:700; }
+  .imp-table { width:100%; border-collapse:collapse; font-size:13.5px; margin-bottom:10px; }
+  .imp-table th, .imp-table td { border-bottom:1px solid #eef0f3; padding:5px 6px; text-align:left; }
+  .imp-table th { background:#f6f7f9; }
+  .imp-table tr.dup td { color:#aaa; text-decoration:line-through; }
+  .radio { display:flex; gap:8px; align-items:flex-start; padding:10px 12px; border:1px solid var(--line); border-radius:10px; margin-bottom:6px; cursor:pointer; }
+  .radio small { display:block; color:var(--muted); }
+  .hint { color:var(--muted); font-size:13px; }
+
+  /* ===== 인쇄 영역 ===== */
+  #print-root { position:fixed; left:-10000px; top:0; }
+  @page { size: A4; margin: 0; }
+  @media print {
+    html, body { background:#fff; }
+    body > *:not(#print-root) { display:none !important; }
+    #print-root { position:static; }
+  }
+  .poster { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; color:#000; padding:20mm; font-family:"Malgun Gothic",sans-serif; }
+  .poster h1 { font-size:13mm; margin:0 0 6mm; line-height:1.25; }
+  .poster .p-sub { font-size:8mm; margin-bottom:14mm; }
+  .poster .p-qr { width:130mm; height:130mm; }
+  .poster .p-qr svg { width:130mm; height:130mm; display:block; }
+  .poster .p-steps { font-size:6.5mm; margin-top:14mm; line-height:1.8; }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🖨️</span>
+  <select id="event-sel" title="출력할 행사"></select>
+  <span class="grow"></span>
+  <button id="btn-prep">📋 행사 준비</button>
+  <button id="btn-after">📦 행사 후</button>
+  <span class="sep"></span>
+  <a class="btnlike" href="designer.html" target="_blank">🎨 디자인</a>
+  <a class="btnlike" href="#" id="lnk-dash" target="_blank">📈 대시보드</a>
+  <button id="btn-settings" class="ghost" title="설정">⚙ 설정</button>
+</header>
+
+<div class="statusbar st-idle" id="status-box">
+  <div class="ico" id="status-ico">○</div>
+  <div class="txt">
+    <div class="ttl" id="status-msg">불러오는 중…</div>
+    <div class="dt" id="status-detail"></div>
+    <div class="meta"><span class="chip" id="pill-conn">연결 확인 중</span><span class="chip" id="pill-mode"></span></div>
+  </div>
+  <div class="acts">
+    <button class="primary" id="btn-ready" hidden>✓ 준비 완료 (Space)</button>
+    <button id="btn-pause">⏸ 일시정지</button>
+  </div>
+</div>
+
+<div class="demo-bar" id="demo-bar" hidden>
+  <b>데모 모드</b> 서버 주소가 없어서 가상 데이터로 동작합니다.
+  <button id="btn-fake">＋ 가상 등록 1명</button>
+  <button id="btn-fake4">＋ 4명</button>
+  <button id="btn-demo-reset" class="danger">데모 초기화</button>
+</div>
+
+<main>
+  <!-- 왼쪽: 출력 대기 + 직접 등록 -->
+  <div class="col-left">
+    <section class="card">
+      <h2>출력 대기 <span class="big" id="queue-count">0</span><span class="unit">명</span></h2>
+      <ul class="list" id="queue-list"></ul>
+    </section>
+    <section class="card">
+      <h2>폰 없는 분 직접 등록</h2>
+      <form id="manual-form" autocomplete="off">
+        <label class="field"><span>소속</span><input id="m-org" maxlength="40" placeholder="예: 조슈아파트너스"></label>
+        <label class="field"><span>성명 (필수)</span><input id="m-name" maxlength="20" placeholder="예: 홍길동"></label>
+        <label class="field"><span>직책</span><input id="m-title" maxlength="20" placeholder="예: 대표"></label>
+        <button type="submit" class="primary" id="btn-manual">등록하고 바로 인쇄</button>
+      </form>
+      <div class="note" id="manual-msg">등록하면 칸이 비워져 다음 분을 바로 받을 수 있습니다.</div>
+    </section>
+  </div>
+
+  <!-- 가운데: 명단 -->
+  <div class="col-main">
+    <section class="card">
+      <h2>명단 <span class="count" id="all-count"></span></h2>
+      <div class="search"><input id="search" placeholder="이름 또는 소속으로 찾기" autocomplete="off"></div>
+      <div class="filters" id="filters">
+        <button class="on" data-f="">전체</button>
+        <button data-f="사전등록">미도착</button>
+        <button data-f="대기">출력 대기</button>
+        <button data-f="출력완료">출력됨</button>
+      </div>
+      <ul class="list" id="all-list"></ul>
+    </section>
+  </div>
+
+  <!-- 오른쪽: 라벨지 · 미리보기 -->
+  <div class="col-side">
+    <section class="card">
+      <h2>라벨지</h2>
+      <div class="sheet-wrap">
+        <div class="sheet" id="sheet-view"></div>
+        <div class="sheet-info">
+          <div class="left" id="sheet-left">0<small> / 0칸 남음</small></div>
+          <p>칸을 누르면 '사용함 / 비어 있음'을 바꿀 수 있습니다</p>
+          <button id="btn-newsheet" class="sm">📄 새 시트로 시작</button>
+        </div>
+      </div>
+    </section>
+    <section class="card preview-box">
+      <h2>명찰 미리보기</h2>
+      <div id="badge-preview"></div>
+      <div class="cap" id="preview-cap"></div>
+    </section>
+  </div>
+</main>
+
+<!-- 행사 준비 -->
+<dialog id="dlg-prep">
+  <div class="dlg">
+    <h3>📋 행사 준비 <button class="ghost x" data-close>✕ 닫기</button></h3>
+    <p class="sub">위에서부터 순서대로 하면 됩니다. 끝낸 단계는 동그라미를 눌러 ✓ 표시할 수 있습니다.</p>
+    <ul class="steps">
+      <li data-step="roster">
+        <button class="chk" data-toggle title="완료 표시">✓</button>
+        <div class="body"><b>사전 명단 올리기 <span class="opt">(사전 명단이 있을 때)</span></b><small id="prep-roster-info">엑셀 양식을 받아 채운 뒤 올립니다</small></div>
+        <div class="acts"><button id="btn-template">📥 양식 받기</button><button id="btn-import" class="primary">📤 올리기</button></div>
+      </li>
+      <li data-step="bg" id="prep-bg-row">
+        <button class="chk" data-toggle title="완료 표시">✓</button>
+        <div class="body"><b>배경 명찰 미리 인쇄</b><small>이름 없는 배경만 A4에 인쇄해 잘라 둡니다 (라벨 부착 방식)</small></div>
+        <div class="acts"><button id="btn-bgprint">🎨 인쇄</button></div>
+      </li>
+      <li data-step="test">
+        <button class="chk" data-toggle title="완료 표시">✓</button>
+        <div class="body"><b>라벨 위치 테스트</b><small>일반 종이에 인쇄해 라벨지와 겹쳐 빛에 비춰 봅니다</small></div>
+        <div class="acts"><button id="btn-test">📐 테스트 인쇄</button></div>
+      </li>
+      <li data-step="poster">
+        <button class="chk" data-toggle title="완료 표시">✓</button>
+        <div class="body"><b>등록 QR 포스터 인쇄</b><small>입구에 붙일 QR 안내문 (A4)</small></div>
+        <div class="acts"><button id="btn-poster">🔳 인쇄</button></div>
+      </li>
+      <li data-step="bulk">
+        <button class="chk" data-toggle title="완료 표시">✓</button>
+        <div class="body"><b>명찰 미리 뽑아 두기 <span class="opt">(선택)</span></b><small>사전 명단 전원의 명찰을 한 번에 인쇄합니다</small></div>
+        <div class="acts"><button id="btn-bulk">🗂 전체 인쇄</button></div>
+      </li>
+    </ul>
+    <input type="file" id="import-file" accept=".xlsx,.xls,.csv" hidden>
+  </div>
+</dialog>
+
+<!-- 행사 후 -->
+<dialog id="dlg-after">
+  <div class="dlg">
+    <h3>📦 행사 후 <button class="ghost x" data-close>✕ 닫기</button></h3>
+    <p class="sub">결과보고용 명단을 받고, 리허설 뒤에는 명단을 비웁니다.</p>
+    <ul class="steps">
+      <li>
+        <span class="num" style="color:var(--accent)">1</span>
+        <div class="body"><b>참석자 명단 엑셀 받기</b><small>요약 · 참석자 명단 · 세션 출석이 한 파일로 저장됩니다</small></div>
+        <div class="acts"><button id="btn-export" class="primary">📊 엑셀 받기</button></div>
+      </li>
+      <li class="danger-zone">
+        <span class="num" style="color:var(--bad)">!</span>
+        <div class="body"><b>이 행사 명단 비우기</b><small>리허설(테스트) 기록을 지울 때만 씁니다. 되돌릴 수 없습니다.</small></div>
+        <div class="acts"><button id="btn-clear" class="danger">🧹 비우기</button></div>
+      </li>
+    </ul>
+  </div>
+</dialog>
+
+<!-- 참가자 수정 -->
+<dialog id="dlg-edit">
+  <form class="dlg" method="dialog" id="edit-form">
+    <h3>참가자 수정</h3>
+    <p class="sub" id="edit-sub"></p>
+    <label class="field"><span>소속</span><input id="e-org" maxlength="40"></label>
+    <label class="field"><span>성명 (필수)</span><input id="e-name" maxlength="20"></label>
+    <label class="field"><span>직책</span><input id="e-title" maxlength="20"></label>
+    <div class="note bad" id="edit-err"></div>
+    <div class="dlg-foot">
+      <button value="cancel" formnovalidate>취소</button>
+      <button value="save">저장만</button>
+      <button class="primary" value="reprint">저장하고 다시 인쇄</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 설정 -->
+<dialog id="dlg">
+  <form class="dlg" method="dialog" id="cfg-form">
+    <h3>설정</h3>
+    <fieldset>
+      <legend>서버 연결</legend>
+      <label class="field"><span>웹앱 URL (config.js 값이 기본, 비워두면 데모 모드)</span><input name="apiUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
+      <label class="field"><span>스테이션 키</span><input name="key"></label>
+      <div><button type="button" id="btn-conn">연결 테스트</button><span id="conn-result"></span></div>
+    </fieldset>
+    <fieldset>
+      <legend>출력 방식</legend>
+      <label class="field"><span>모아찍기 대기시간(초) — 0이면 들어오는 즉시 출력, 30이면 빈 칸이 다 차거나 30초 지나면 출력</span><input name="waitSec" type="number" min="0" step="1"></label>
+      <label class="field"><span>서버 확인 주기(초)</span><input name="pollSec" type="number" min="2" step="1"></label>
+      <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" name="confirmReload"> 시트에 빈 칸이 남으면, 다시 넣을 때까지 다음 출력을 멈추고 기다리기 (권장)</label>
+    </fieldset>
+    <fieldset>
+      <legend>용지 규격 (mm, A4 기준) — 이 PC의 프린터·라벨지에 맞춘 값</legend>
+      <label class="field"><span>설정할 용지</span>
+        <select id="layout-target">
+          <option value="full">명찰 전체 인쇄용 (일반 행사 · 라벨 방식의 배경 미리 출력)</option>
+          <option value="label">라벨 부착 방식용 (이름 부분만 라벨에 인쇄)</option>
+        </select></label>
+      <label class="field"><span>프리셋</span>
+        <select id="preset">
+          <option value="">— 선택하면 아래 값이 채워집니다 —</option>
+          <option value="a">100×120 · 2×2 (4칸, 세로형)</option>
+          <option value="b">99.1×139 · 2×2 (기성 4칸)</option>
+          <option value="c">99.1×67.7 · 2×4 (기성 8칸)</option>
+          <optgroup label="폼텍 라벨지 (공식 규격, 여백까지 자동)" id="preset-formtec"></optgroup>
+        </select></label>
+      <div class="row">
+        <label class="field"><span>열 수</span><input name="cols" type="number" min="1" max="6"></label>
+        <label class="field"><span>행 수</span><input name="rows" type="number" min="1" max="20"></label>
+        <label class="field"><span>칸 가로</span><input name="labelW" type="number" step="any"></label>
+        <label class="field"><span>칸 세로</span><input name="labelH" type="number" step="any"></label>
+      </div>
+      <div class="row">
+        <label class="field"><span>왼쪽 여백</span><input name="marginL" type="number" step="any"></label>
+        <label class="field"><span>위쪽 여백</span><input name="marginT" type="number" step="any"></label>
+        <label class="field"><span>칸 사이 가로</span><input name="gapX" type="number" step="any"></label>
+        <label class="field"><span>칸 사이 세로</span><input name="gapY" type="number" step="any"></label>
+      </div>
+      <div class="row">
+        <label class="field"><span>인쇄 보정 X (＋오른쪽)</span><input name="offX" type="number" step="any"></label>
+        <label class="field"><span>인쇄 보정 Y (＋아래)</span><input name="offY" type="number" step="any"></label>
+      </div>
+      <button type="button" id="btn-center">여백 자동 가운데 정렬</button>
+    </fieldset>
+    <div class="dlg-foot">
+      <button value="cancel" formnovalidate>취소</button>
+      <button class="primary" id="btn-save" value="save">저장</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 명단 비우기 (리허설 뒤 초기화) -->
+<dialog id="dlg-clear">
+  <form class="dlg" method="dialog" id="clear-form">
+    <h3>명단 비우기 — <span id="clr-event"></span></h3>
+    <p style="line-height:1.6;margin:0 0 10px">이 행사의 <b>등록자 <span id="clr-count">…</span>명</b>과 <b>출석 기록</b>을 지웁니다.
+      행사 정보·명찰 디자인·등록 폼 설정은 그대로 남습니다.<br>
+      <b style="color:var(--bad)">되돌릴 수 없습니다.</b> 리허설(테스트)이 끝난 뒤 실제 행사 전에 쓰세요.
+      필요하면 먼저 [📦 행사 후 → 📊 엑셀 받기]로 백업하세요.</p>
+    <label class="field"><span>확인을 위해 행사명을 똑같이 입력하세요</span><input id="clr-confirm" autocomplete="off"></label>
+    <div class="dlg-foot">
+      <button value="cancel" formnovalidate>취소</button>
+      <button class="primary" id="clr-ok" value="ok" style="background:var(--bad);border-color:var(--bad)" disabled>명단 비우기</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 엑셀 명단 올리기 -->
+<dialog id="dlg-import">
+  <form class="dlg" method="dialog" id="import-form">
+    <h3>엑셀 명단 올리기 — <span id="imp-event"></span></h3>
+    <div class="hint" id="imp-file" style="text-align:left;margin:0 0 8px"></div>
+    <div class="imp-sum" id="imp-sum"></div>
+    <div style="max-height:260px;overflow:auto"><table class="imp-table" id="imp-table"></table></div>
+    <label class="radio"><input type="radio" name="impmode" value="hold" checked>
+      <span><b>명단에만 등록 (사전등록)</b><small>바로 인쇄하지 않습니다. 도착하면 명단에서 [체크인·인쇄]를 누르거나, 행사 준비의 [🗂 전체 인쇄]로 한 번에 뽑습니다.</small></span></label>
+    <label class="radio"><input type="radio" name="impmode" value="queue">
+      <span><b>출력 대기열에 바로 추가</b><small>올리자마자 순서대로 인쇄를 시작합니다.</small></span></label>
+    <div class="dlg-foot">
+      <button value="cancel" formnovalidate>취소</button>
+      <button class="primary" id="imp-ok" value="ok">올리기</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="print-root"></div>
+
+<script>
+BadgeRender.injectAssets();
+
+/* =========================================================
+ * 설정 / 저장소
+ * ========================================================= */
+const memStore = {}; // localStorage를 못 쓰는 환경용 대체 저장소
+const LS = {
+  get(k, d) {
+    try { const v = localStorage.getItem('badge.' + k); if (v != null) return JSON.parse(v); } catch (e) {}
+    return k in memStore ? JSON.parse(memStore[k]) : d;
+  },
+  set(k, v) {
+    memStore[k] = JSON.stringify(v);
+    try { localStorage.setItem('badge.' + k, memStore[k]); } catch (e) {}
+  },
+};
+
+const SERVER = window.BADGE_SERVER || { apiUrl: '', key: '' };
+const DEFAULTS = {
+  apiUrl: SERVER.apiUrl, key: SERVER.key, eventId: '',
+  waitSec: 0, pollSec: 3, confirmReload: true,
+  cols: 2, rows: 2, labelW: 100, labelH: 120, marginL: 5, marginT: 28.5, gapX: 0, gapY: 0, offX: 0, offY: 0,
+};
+const PRESETS = {
+  a: { cols: 2, rows: 2, labelW: 100, labelH: 120 },
+  b: { cols: 2, rows: 2, labelW: 99.1, labelH: 139 },
+  c: { cols: 2, rows: 4, labelW: 99.1, labelH: 67.7 },
+};
+// 폼텍 라벨지는 공식 규격(여백·칸 사이까지)을 그대로 프리셋으로
+Object.entries(BadgeRender.LABEL_STOCKS).forEach(([id, s]) => { PRESETS[id] = Object.assign({}, s.layout, { exact: true }); });
+const LAYOUT_KEYS = ['cols', 'rows', 'labelW', 'labelH', 'marginL', 'marginT', 'gapX', 'gapY', 'offX', 'offY'];
+const NUM_KEYS = ['waitSec', 'pollSec', 'cols', 'rows', 'labelW', 'labelH', 'marginL', 'marginT', 'gapX', 'gapY', 'offX', 'offY'];
+
+let cfg = Object.assign({}, DEFAULTS, LS.get('cfg', {}));
+let sheet = LS.get('sheet', { used: [] });        // 현재 라벨지에서 이미 쓴 칸 번호(0부터)
+let printed = new Set(LS.get('printed', []));     // 이 PC에서 이미 출력한 ID (서버 반영 전 중복 출력 방지)
+let outbox = LS.get('outbox', []);                // 서버에 아직 못 보낸 쓰기 요청
+
+let state = 'running';                            // running | paused | reload
+let printing = false;
+let queue = [];
+let allRows = [];
+let events = [];
+let current = null;                               // { event, design, bg } 선택된 행사
+const firstSeen = {};
+let lastPoll = 0, lastAll = 0, lastEvents = 0, polling = false, flushing = false;
+let connOk = null, connErr = '';
+let lastBatch = null;
+
+/** 지금 행사가 '라벨 부착 방식'이면 지정된 폼텍 라벨지에 이름 부분만, 아니면 명찰 전체를 인쇄 */
+const labelMode = () => !!(current && BadgeRender.isLabelMode(current.design));
+const pick = (o, keys) => keys.reduce((m, k) => (m[k] = o[k], m), {});
+const labelStock = () => current.design.label.stock;
+/** 라벨 방식: 행사에 지정된 폼텍 라벨지 규격 + 이 PC에서 맞춘 보정값(라벨지별 저장) */
+const lay = () => (labelMode()
+  ? BadgeRender.stockLayout(labelStock(), (cfg.stockLayouts || {})[labelStock()])
+  : pick(cfg, LAYOUT_KEYS));
+const printDesign = () => (labelMode() ? BadgeRender.labelDesign(current.design) : current.design);
+const totalSlots = () => lay().cols * lay().rows;
+const freeSlots = () => { const u = new Set(sheet.used); return [...Array(totalSlots()).keys()].filter(i => !u.has(i)); };
+const saveSheet = () => LS.set('sheet', sheet);
+const savePrinted = () => LS.set('printed', [...printed].slice(-3000));
+const saveOutbox = () => LS.set('outbox', outbox);
+const saveCfg = () => LS.set('cfg', cfg);
+const $ = id => document.getElementById(id);
+const esc = BadgeRender.esc;
+const eventName = () => (current && current.event ? current.event.name : '');
+
+/* =========================================================
+ * 백엔드 (Apps Script 웹앱 / 데모)
+ * ========================================================= */
+/** 응답이 없으면 20초 뒤 포기 (요청 하나가 멈춰서 전체가 멈추는 것 방지) */
+/** 서버 요청. 읽기(GET)는 네트워크가 잠깐 끊겨 실패하면 두 번까지 다시 시도 */
+async function fetchJSON(url, opts) {
+  const isGet = !opts || !opts.method || opts.method === 'GET';
+  for (let attempt = 0; ; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const r = await fetch(url, Object.assign({ signal: ctrl.signal }, opts));
+      let j;
+      try { j = await r.json(); } catch (e) { throw new TypeError('bad response'); } // 구글 오류 페이지(HTML) 등
+      if (!j.ok) throw new Error(j.error || '서버 오류');
+      return j;
+    } catch (e) {
+      const net = e instanceof TypeError; // Failed to fetch · 응답이 JSON이 아님
+      if (net && isGet && attempt < 2) { await new Promise(res => setTimeout(res, 1500 * (attempt + 1))); continue; }
+      if (e.name === 'AbortError') throw new Error('서버 응답 시간 초과 — 잠시 후 다시 시도하세요.');
+      if (net) throw new Error('서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도하세요.');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
+/** 서버 인증: 로그인 통행증(token)이 있으면 그것을, 없으면 이 PC의 스테이션 키를 보냄 */
+const authParams = () => { const t = window.BadgeGate ? BadgeGate.token() : ''; return t ? { token: t } : { key: cfg.key || '' }; };
+/** 통행증이 만료되면 로그인 창을 다시 띄우고, 로그인한 뒤 같은 요청을 한 번 더 보냄 */
+async function withAuth(run) {
+  try { return await run(); } catch (e) {
+    if (window.BadgeGate && BadgeGate.isAuthError(e)) { await BadgeGate.relogin(); return run(); }
+    throw e;
+  }
+}
+const remote = {
+  get(action, params) {
+    // 인증값을 맨 앞에: 광고 차단기가 '?action=event&' 로 시작하는 주소를 막음
+    return withAuth(() => {
+      const q = Object.entries(Object.assign(authParams(), { action }, params || {}))
+        .map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+      return fetchJSON(cfg.apiUrl + (cfg.apiUrl.includes('?') ? '&' : '?') + q, { cache: 'no-store' });
+    });
+  },
+  post(body) {
+    // text/plain 으로 보내야 CORS 사전요청 없이 Apps Script에 전달됨
+    return withAuth(() => fetchJSON(cfg.apiUrl, { method: 'POST', body: JSON.stringify(Object.assign(authParams(), body)) }));
+  },
+  ping() { return this.get('ping'); },
+  events() { return this.get('events').then(j => j.items); },
+  event(id) { return this.get('event', { id }); },
+  pending(ev) { return this.get('pending', { event: ev }).then(j => j.items); },
+  all(ev) { return this.get('all', { event: ev }).then(j => j.items); },
+  attendance(ev) { return this.get('attendance', { event: ev }).then(j => j.items); },
+  write(op) { return this.post(op); },
+};
+
+const DEMO_NAMES = ['김민준', '이서연', '박도윤', '최지우', '정하준', '강서윤', '조은우', '윤지호', '장수아', '임건우', '한예린', '남궁미르나래'];
+const DEMO_ORGS = ['(주)새출발테크', '다시봄협동조합', '재도전푸드', '한빛디자인 스튜디오', '그린에너지솔루션 주식회사', '서울창업허브 입주기업 협의회 운영위원회'];
+const DEMO_TITLES = ['대표', '대표이사', '이사', '팀장', '매니저', '', 'CTO'];
+const DEMO_EVENT = { id: 'DEMO', name: '데모 행사', status: '진행중' };
+const demo = {
+  db() { return LS.get('demoDB', []); },
+  save(d) { LS.set('demoDB', d); },
+  async ping() { return { ok: true }; },
+  async events() { return [DEMO_EVENT]; },
+  async event() { return { event: DEMO_EVENT, design: null, bg: '' }; },
+  async pending() { return this.db().filter(r => r.status === '대기'); },
+  async all() { return this.db(); },
+  async attendance() { return []; },
+  async write(op) {
+    const d = this.db(), now = new Date().toISOString();
+    if (op.action === 'addMany') {
+      op.people.forEach(p => d.push({ id: rid(), time: now, org: p.org, name: p.name, title: p.title,
+        status: op.queue ? '대기' : '사전등록', count: 0, printedAt: '', source: '엑셀' }));
+      this.save(d);
+      return { ok: true, added: op.people.length };
+    }
+    if (op.action === 'add') {
+      d.push({ id: rid(), time: now, org: op.person.org, name: op.person.name, title: op.person.title,
+               status: op.printed ? '출력완료' : '대기', count: op.printed ? 1 : 0, printedAt: op.printed ? now : '', source: '현장수동' });
+    } else {
+      const ids = op.ids || [op.id];
+      d.forEach(r => {
+        if (!ids.includes(r.id)) return;
+        if (op.action === 'mark') { r.status = '출력완료'; r.count++; r.printedAt = now; }
+        if (op.action === 'requeue') r.status = '대기';
+        if (op.action === 'skip') r.status = '제외';
+        if (op.action === 'edit') { Object.assign(r, op.person); if (op.reprint) r.status = '대기'; }
+      });
+    }
+    this.save(d);
+    return { ok: true };
+  },
+  fake() {
+    const pick = a => a[Math.floor(Math.random() * a.length)];
+    const d = this.db();
+    d.push({ id: rid(), time: new Date().toISOString(), org: pick(DEMO_ORGS), name: pick(DEMO_NAMES), title: pick(DEMO_TITLES),
+             status: '대기', count: 0, printedAt: '', source: 'QR(데모)' });
+    this.save(d);
+  },
+};
+const rid = () => Math.random().toString(36).slice(2, 10);
+const backend = () => (cfg.apiUrl ? remote : demo);
+
+/* =========================================================
+ * 행사 / 디자인
+ * ========================================================= */
+async function refreshEvents() {
+  lastEvents = Date.now();
+  events = await backend().events();
+  const sel = $('event-sel');
+  const on = events.filter(e => e.status !== '종료'), off = events.filter(e => e.status === '종료');
+  sel.innerHTML = '<option value="">— 행사 선택 —</option>' +
+    on.slice().reverse().map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('') +
+    (off.length ? '<optgroup label="종료된 행사">' + off.slice().reverse().map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('') + '</optgroup>' : '');
+  if (!cfg.eventId && on.length === 1) { cfg.eventId = on[0].id; saveCfg(); }
+  sel.value = events.some(e => e.id === cfg.eventId) ? cfg.eventId : '';
+  const ev = events.find(e => e.id === cfg.eventId);
+  // 디자인이 바뀌었으면(수정일 변경) 다시 받아온다
+  if (ev && (!current || current.event.id !== ev.id || current.event.updated !== ev.updated)) await loadEvent(ev.id);
+  if (!ev) current = null;
+}
+
+async function loadEvent(id) {
+  const j = await backend().event(id);
+  current = { event: j.event, design: BadgeRender.normalize(j.design), bg: j.bg || '' };
+  document.title = '명찰 출력 · ' + j.event.name;
+  await ensureQR(); // 명찰에 개인 QR이 있으면 QR 도구를 미리 받아 둠
+  syncSheetMode();
+  renderPreview();
+  render();
+}
+
+/** 명찰 전체 ↔ 라벨 방식이 바뀌면 용지가 달라지므로 칸 기록을 새로 시작 */
+function syncSheetMode() {
+  const mode = labelMode() ? 'label' : 'full';
+  if (sheet.mode === mode) return;
+  sheet = { used: [], mode };
+  saveSheet();
+  if (state === 'reload') state = 'running';
+}
+
+function renderPreview() {
+  const box = $('badge-preview');
+  if (!current) { box.innerHTML = ''; $('prep-bg-row').hidden = true; $('preview-cap').textContent = ''; return; }
+  const d = current.design;
+  const s = 230 / Math.max(d.w, d.h) / 3.7795;         // 긴 변 230px 정도로 축소 표시
+  const sample = queue[0] || { org: '○○주식회사', name: '홍길동', title: '대표' };
+  box.style.width = d.w * 3.7795 * s + 'px';
+  box.style.height = d.h * 3.7795 * s + 'px';
+  box.innerHTML = `<div style="transform:scale(${s});transform-origin:0 0">${BadgeRender.badgeHTML(d, current.bg, sample, eventName())}</div>`;
+  BadgeRender.fitAll(box);
+  const lm = labelMode();
+  $('preview-cap').textContent = lm ? `라벨 부착 방식 · 이름 부분만 ${d.label.w}×${d.label.h}mm 라벨에 인쇄` : `명찰 전체 인쇄 · ${d.w}×${d.h}mm`;
+  $('prep-bg-row').hidden = !lm;
+}
+
+$('event-sel').onchange = async e => {
+  cfg.eventId = e.target.value;
+  saveCfg();
+  queue = []; allRows = []; current = null; lastAll = 0;
+  render(); renderAll(); renderPreview();
+  if (cfg.eventId) {
+    try { await loadEvent(cfg.eventId); } catch (err) { setConn(false, err.message); }
+  }
+  poll();
+};
+
+/* =========================================================
+ * 서버 동기화
+ * ========================================================= */
+function enqueue(op) {
+  outbox.push(op);
+  saveOutbox();
+  return flushOutbox();
+}
+
+async function flushOutbox() {
+  if (flushing) return;
+  flushing = true;
+  try {
+    while (outbox.length) {
+      await backend().write(outbox[0]);
+      outbox.shift();
+      saveOutbox();
+    }
+  } catch (e) {
+    setConn(false, e.message);
+  } finally {
+    flushing = false;
+  }
+}
+
+async function poll() {
+  if (polling) return;
+  polling = true;
+  lastPoll = Date.now();
+  try {
+    await flushOutbox();
+    if (!events.length || Date.now() - lastEvents > 60000) await refreshEvents();
+    if (current) {
+      const items = await backend().pending(current.event.id);
+      const now = Date.now();
+      items.forEach(p => { if (!firstSeen[p.id]) firstSeen[p.id] = now; });
+      queue = items.filter(p => !printed.has(p.id)).sort((a, b) => String(a.time).localeCompare(String(b.time)));
+      if (now - lastAll > 10000) await refreshAll();
+    }
+    setConn(true);
+  } catch (e) {
+    setConn(false, e.message);
+  } finally {
+    polling = false;
+    render();
+    maybePrint();
+  }
+}
+
+async function refreshAll() {
+  if (!current) return;
+  lastAll = Date.now();
+  allRows = await backend().all(current.event.id);
+  renderAll();
+}
+
+function setConn(ok, err) {
+  connOk = ok;
+  connErr = err || '';
+}
+
+/* =========================================================
+ * 출력 로직
+ * ========================================================= */
+function maybePrint() {
+  if (state !== 'running' || printing || !queue.length || !current) return;
+  const free = freeSlots();
+  if (!free.length) { sheet.used = []; saveSheet(); return maybePrint(); }
+  const oldest = Math.min(...queue.map(p => firstSeen[p.id] || Date.now()));
+  if (queue.length < free.length && Date.now() - oldest < cfg.waitSec * 1000) return; // 모아찍기: 더 기다림
+  printBatch(queue.slice(0, free.length), free);
+}
+
+async function printBatch(people, free) {
+  printing = true;
+  try {
+    await ensureQR(); // QR 도구가 준비된 뒤에 명찰을 그려야 QR이 들어감
+    const placed = people.map((p, i) => ({ slot: free[i], html: badgeFor(p) }));
+    await printPages([placed], people);
+
+    const ids = people.map(p => p.id);
+    ids.forEach(id => printed.add(id));
+    savePrinted();
+    queue = queue.filter(p => !ids.includes(p.id));
+    sheet.used.push(...placed.map(x => x.slot));
+    lastBatch = { names: people.map(p => p.name), slots: placed.map(x => x.slot + 1) };
+
+    if (sheet.used.length >= totalSlots()) {
+      sheet.used = [];                               // 다 썼음 → 다음은 새 시트
+    } else if (cfg.confirmReload) {
+      state = 'reload';                              // 빈 칸 남음 → 같은 시트 다시 넣을 때까지 대기
+    }
+    saveSheet();
+    enqueue({ action: 'mark', ids }).then(() => refreshAll()).catch(() => {});
+  } finally {
+    printing = false;
+    render();
+  }
+}
+
+/** 개인 QR 요소가 있는 디자인이면 QR 도구를 받아 둔다 (인터넷이 없으면 QR 자리만 비어서 출력) */
+async function ensureQR() {
+  if (current && BadgeRender.hasQR(current.design)) { try { await BadgeRender.loadQR(); } catch (e) { /* 무시 */ } }
+}
+/** 명찰 한 장 — 개인 QR 요소가 있으면 참가자 카드 주소(웹앱URL?p=ID)를 넣는다 */
+const FORM_BASE = (window.BADGE_SERVER || {}).formBase || ''; // GitHub Pages 주소 (config.js)
+const personUrl = id => FORM_BASE ? FORM_BASE + 'card.html?p=' + encodeURIComponent(id)
+  : cfg.apiUrl + (cfg.apiUrl.includes('?') ? '&' : '?') + 'p=' + encodeURIComponent(id);
+const badgeFor = p => BadgeRender.badgeHTML(printDesign(), labelMode() ? '' : current.bg, Object.assign({ qrUrl: personUrl(p.id) }, p), eventName());
+
+/** opts.layout / opts.design 로 용지·디자인을 바꿔 인쇄 (배경 미리 출력용). 기본은 현재 모드 */
+async function printPages(pages, people, opts) {
+  opts = opts || {};
+  const L = opts.layout || lay();
+  const design = opts.design || (current ? printDesign() : null);
+  if (BadgeRender.hasQR(design)) { try { await BadgeRender.loadQR(); } catch (e) { /* 인터넷이 없으면 QR 자리만 비어서 출력 */ } }
+  $('print-root').innerHTML = BadgeRender.pagesHTML(L, pages, design);
+  if (current) await BadgeRender.loadFonts(current.design, (people || []).map(p => p.org + p.name + p.title).concat(eventName()));
+  await waitImages($('print-root'));
+  await new Promise(r => setTimeout(r, 60)); // rAF는 창이 최소화되면 멈추므로 타이머 사용
+  BadgeRender.fitAll($('print-root'));
+  window.print(); // 크롬 --kiosk-printing 이면 확인창 없이 바로 출력
+}
+
+function waitImages(root) {
+  const imgs = [...root.querySelectorAll('img')].filter(i => !i.complete);
+  return Promise.race([
+    Promise.all(imgs.map(i => new Promise(r => { i.onload = i.onerror = r; }))),
+    new Promise(r => setTimeout(r, 5000)),
+  ]);
+}
+
+/* =========================================================
+ * 화면
+ * ========================================================= */
+function render() {
+  const demoMode = !cfg.apiUrl;
+  $('demo-bar').hidden = !demoMode;
+  const pc = $('pill-conn');
+  if (demoMode) pc.textContent = '데모 모드';
+  else if (connOk === null) pc.textContent = '서버 연결 확인 중';
+  else if (connOk) pc.textContent = '서버 연결됨' + (outbox.length ? ` · 미전송 ${outbox.length}건` : '');
+  else pc.textContent = '서버 연결 끊김';
+  pc.title = connErr;
+  $('pill-mode').textContent = !current ? '' : (cfg.waitSec > 0 ? `모아찍기 ${cfg.waitSec}초` : '즉시 출력') + (labelMode() ? ' · 라벨 부착 방식' : '');
+
+  $('btn-pause').textContent = state === 'paused' ? '▶ 다시 시작' : '⏸ 일시정지';
+  $('btn-pause').className = state === 'paused' ? 'primary' : '';
+  $('btn-pause').hidden = !current;
+  ['btn-manual', 'btn-bulk', 'btn-poster', 'btn-import', 'btn-export', 'btn-template', 'btn-clear', 'btn-bgprint', 'btn-test', 'btn-newsheet'].forEach(id => $(id).disabled = !current);
+  $('lnk-dash').href = 'dashboard.html' + (current ? '?e=' + encodeURIComponent(current.event.id) : '');
+
+  $('queue-count').textContent = queue.length;
+  $('queue-list').innerHTML = queue.length
+    ? queue.map((p, i) => `<li><div class="who"><b>${esc(p.name)}</b><small>${esc([p.org, p.title].filter(Boolean).join(' · '))}</small></div>
+        ${i === 0 && printing ? '<span class="tag now pulse">인쇄 중</span>' : '<span class="tag">대기</span>'}
+        <button class="sm danger" data-skip="${esc(p.id)}" title="출력하지 않음">제외</button></li>`).join('')
+    : '<li class="empty">대기 중인 등록이 없습니다</li>';
+
+  const free = freeSlots();
+  const nextSlots = free.slice(0, Math.max(1, Math.min(queue.length, free.length))).map(i => i + 1);
+  $('btn-ready').hidden = state !== 'reload' || !current;
+  let v;
+  if (!current) {
+    v = { c: 'idle', i: '①', t: '출력할 행사를 고르세요', d: '왼쪽 위에서 행사를 고르면 그 행사의 등록자만 인쇄합니다. 새 행사는 [🎨 디자인]에서 만듭니다.' };
+  } else if (!demoMode && connOk === false) {
+    v = { c: 'bad', i: '⚠', t: '서버 연결 끊김 — 다시 연결하는 중', d: '인터넷 연결을 확인하세요. 직접 등록은 지금도 할 수 있고, 연결되면 명단에 자동으로 올라갑니다.' };
+  } else if (state === 'paused') {
+    v = { c: 'warn', i: '⏸', t: '일시정지됨', d: '용지 교체 등을 마친 뒤 [▶ 다시 시작]을 누르세요. 그동안 들어온 등록은 출력 대기에 쌓입니다.' };
+  } else if (state === 'reload') {
+    v = { c: 'warn', i: '✂', t: '스티커를 떼어 드린 뒤, 같은 시트를 다시 넣어 주세요',
+          d: (lastBatch ? `방금 인쇄: ${lastBatch.names.join(', ')} (${lastBatch.slots.join(', ')}번 칸) · ` : '') + `다음은 ${free[0] + 1}번 칸부터 인쇄합니다. 다 넣었으면 [준비 완료]를 누르세요.` };
+  } else if (printing || queue.length) {
+    v = { c: 'ok', i: '🖨', t: '인쇄 중…', d: `${nextSlots.join(', ')}번 칸에 인쇄합니다.` };
+  } else {
+    v = { c: 'ok', i: '●', t: '자동 출력 중', d: sheet.used.length ? `QR 등록이 들어오면 바로 인쇄합니다. 급지함 맨 위에 쓰던 시트가 있어야 합니다 (다음 ${nextSlots.join(', ')}번 칸).` : 'QR 등록이 들어오면 바로 인쇄합니다. 급지함에 새 라벨지를 넣어 두세요.' };
+  }
+  $('status-box').className = 'statusbar st-' + v.c;
+  $('status-ico').textContent = v.i;
+  $('status-ico').className = 'ico' + (v.c === 'ok' ? ' pulse' : '');
+  $('status-msg').textContent = v.t;
+  $('status-detail').textContent = v.d;
+  renderSheet(free);
+}
+
+function renderSheet(free) {
+  const scale = 0.5; // mm → px (화면용, 작게)
+  const v = $('sheet-view');
+  v.style.width = 210 * scale + 'px';
+  v.style.height = 297 * scale + 'px';
+  const used = new Set(sheet.used);
+  const nextSet = new Set(free.slice(0, Math.max(1, Math.min(queue.length || 1, free.length))));
+  let html = '';
+  const L = Object.assign(lay(), { offX: 0, offY: 0 });
+  for (let i = 0; i < totalSlots(); i++) {
+    const r = BadgeRender.slotRect(L, i);
+    const cls = used.has(i) ? 'used' : (nextSet.has(i) && state !== 'paused' ? 'next' : '');
+    html += `<div class="cell ${cls}" data-slot="${i}" style="left:${r.left * scale}px;top:${r.top * scale}px;width:${r.w * scale}px;height:${r.h * scale}px">${i + 1}</div>`;
+  }
+  v.innerHTML = html;
+  $('sheet-left').innerHTML = `${free.length}<small> / ${totalSlots()}칸 남음</small>`;
+}
+
+let listFilter = '';
+function renderAll() {
+  const q = $('search').value.trim().toLowerCase();
+  const rows = allRows.slice().reverse()
+    .filter(r => !listFilter || r.status === listFilter)
+    .filter(r => !q || (r.name + ' ' + r.org).toLowerCase().includes(q));
+  const counts = allRows.reduce((m, r) => (m[r.status] = (m[r.status] || 0) + 1, m), {});
+  $('all-count').textContent = current ? `전체 ${allRows.length} · 출력 ${counts['출력완료'] || 0} · 대기 ${counts['대기'] || 0}` + (counts['사전등록'] ? ` · 미도착 ${counts['사전등록']}` : '') : '';
+  const label = { '사전등록': '미도착', '대기': '출력 대기', '출력완료': '출력됨', '제외': '제외' };
+  const act = r => r.status === '사전등록' ? `<button class="sm primary" data-requeue="${esc(r.id)}">체크인·인쇄</button>`
+    : r.status === '대기' ? '' : `<button class="sm" data-requeue="${esc(r.id)}">재출력</button>`;
+  $('all-list').innerHTML = rows.length ? rows.slice(0, 300).map(r => `<li>
+      <div class="who"><b>${esc(r.name)}</b>${r.checkinAt ? ' <span title="도착 ' + fmtTime(r.checkinAt) + '">🟢</span>' : ''}
+        <small>${esc([r.org, r.title].filter(Boolean).join(' · '))} <span class="when">· ${fmtTime(r.time)} ${esc(r.source || '')}</span></small></div>
+      <span class="tag ${esc(r.status)}">${esc(label[r.status] || r.status)}${r.count > 1 ? ' ×' + r.count : ''}</span>
+      <button class="sm" data-edit="${esc(r.id)}" title="소속·성명·직책 고치기">수정</button>
+      ${act(r)}
+    </li>`).join('')
+    : `<li class="empty">${!current ? '행사를 고르세요' : (q || listFilter) ? '찾는 사람이 없습니다 — 성을 빼거나 소속으로 찾아보세요' : '아직 등록자가 없습니다'}</li>`;
+  renderPrep();
+}
+
+function fmtTime(t) {
+  const d = new Date(t);
+  return isNaN(d) ? '' : (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.toTimeString().slice(0, 5);
+}
+
+/* =========================================================
+ * 버튼 동작
+ * ========================================================= */
+$('btn-ready').onclick = () => { state = 'running'; render(); maybePrint(); };
+$('btn-pause').onclick = () => { state = state === 'paused' ? 'running' : 'paused'; render(); maybePrint(); };
+$('btn-newsheet').onclick = () => {
+  if (sheet.used.length && !confirm('현재 시트의 남은 칸을 버리고 새 라벨지로 시작할까요?')) return;
+  sheet.used = []; saveSheet();
+  if (state === 'reload') state = 'running';
+  render(); maybePrint();
+};
+
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && state === 'reload' && !/INPUT|TEXTAREA|SELECT|BUTTON/.test(document.activeElement.tagName)) {
+    e.preventDefault();
+    $('btn-ready').click();
+  }
+});
+
+$('sheet-view').addEventListener('click', e => {
+  const cell = e.target.closest('[data-slot]');
+  if (!cell) return;
+  const i = Number(cell.dataset.slot);
+  sheet.used = sheet.used.includes(i) ? sheet.used.filter(x => x !== i) : sheet.used.concat(i);
+  saveSheet(); render();
+});
+
+$('queue-list').addEventListener('click', async e => {
+  const id = e.target.dataset.skip;
+  if (!id) return;
+  const p = queue.find(x => x.id === id);
+  if (!confirm(`${p ? p.name : ''} 님을 출력하지 않고 '제외' 처리할까요?`)) return;
+  printed.add(id); savePrinted();
+  queue = queue.filter(x => x.id !== id);
+  render();
+  await enqueue({ action: 'skip', ids: [id] });
+  refreshAll().catch(() => {});
+});
+
+$('all-list').addEventListener('click', async e => {
+  if (e.target.dataset.edit) return openEdit(e.target.dataset.edit);
+  const id = e.target.dataset.requeue;
+  if (!id) return;
+  printed.delete(id); savePrinted();
+  await enqueue({ action: 'requeue', ids: [id] });
+  await refreshAll().catch(() => {});
+  poll();
+});
+$('search').oninput = renderAll;
+$('filters').addEventListener('click', e => {
+  const b = e.target.closest('[data-f]');
+  if (!b) return;
+  listFilter = b.dataset.f;
+  $('filters').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+  renderAll();
+});
+
+/* 참가자 수정 (오타 등) */
+let editId = null;
+function openEdit(id) {
+  const r = allRows.find(x => x.id === id);
+  if (!r) return;
+  editId = id;
+  $('edit-sub').textContent = `${r.name} · ${r.source || ''} · ${fmtTime(r.time)}`;
+  $('e-org').value = r.org; $('e-name').value = r.name; $('e-title').value = r.title;
+  $('edit-err').textContent = '';
+  $('dlg-edit').showModal();
+  $('e-name').focus();
+}
+$('edit-form').addEventListener('submit', async e => {
+  const how = e.submitter && e.submitter.value;
+  if (how !== 'save' && how !== 'reprint') return;
+  e.preventDefault();
+  const person = { org: $('e-org').value.trim(), name: $('e-name').value.trim(), title: $('e-title').value.trim() };
+  if (!person.name) { $('edit-err').textContent = '성명을 입력하세요.'; return; }
+  const btn = e.submitter;
+  btn.disabled = true;
+  try {
+    await backend().write({ action: 'edit', id: editId, person, reprint: how === 'reprint' });
+    if (how === 'reprint') { printed.delete(editId); savePrinted(); }
+    $('dlg-edit').close();
+    await refreshAll().catch(() => {});
+    poll();
+  } catch (err) {
+    $('edit-err').textContent = '저장하지 못했습니다: ' + err.message;
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+const note = (t, c) => { $('manual-msg').textContent = t; $('manual-msg').className = 'note ' + (c || ''); };
+$('manual-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (!current) return;
+  const person = { org: $('m-org').value.trim(), name: $('m-name').value.trim(), title: $('m-title').value.trim() };
+  if (!person.name) { note('성명을 입력하세요.', 'bad'); $('m-name').focus(); return; }
+  const btn = $('btn-manual');
+  btn.disabled = true;
+  try {
+    const res = await backend().write({ action: 'add', person, printed: false, event: current.event.id });
+    note(res.checkin ? `✓ ${res.name} 님 사전등록 확인 — 곧 인쇄됩니다.`
+      : res.duplicate ? `${res.name} 님은 이미 출력 대기 중입니다.`
+      : res.already ? `${res.name} 님은 이미 출력했습니다. 다시 뽑으려면 명단에서 [재출력]을 누르세요.`
+      : `✓ ${person.name} 님 등록 — 곧 인쇄됩니다.`, res.already || res.duplicate ? '' : 'ok');
+    ['m-org', 'm-name', 'm-title'].forEach(id => $(id).value = '');
+    $('m-org').focus();
+    poll();
+  } catch (err) {
+    // 서버가 안 될 때: 바로 출력하고, 등록은 연결되면 전송
+    if (confirm(`서버에 연결할 수 없습니다 (${err.message}).\n지금 바로 출력하고, 명단 등록은 연결이 돌아오면 자동 전송할까요?`)) {
+      const free = freeSlots().length ? freeSlots() : (sheet.used = [], freeSlots());
+      await printBatch([Object.assign({ id: 'offline-' + rid() }, person)], free);
+      outbox.push({ action: 'add', person, printed: true, event: current.event.id }); saveOutbox();
+      ['m-org', 'm-name', 'm-title'].forEach(id => $(id).value = '');
+      note(`${person.name} 님 인쇄함 (명단은 연결되면 전송)`, 'ok');
+      $('m-org').focus();
+    }
+  } finally {
+    btn.disabled = false;
+    render();
+  }
+});
+
+$('btn-test').onclick = async () => {
+  const L = lay();
+  const cells = [...Array(totalSlots()).keys()].map(i => ({
+    slot: i, cls: 'test',
+    html: `<b>${i + 1}</b><div style="font-size:3.5mm">${L.labelW}×${L.labelH}mm</div><div style="font-size:3mm;margin-top:2mm">점선이 라벨 칸 테두리와 맞아야 합니다</div>`,
+  }));
+  await printPages([cells]);
+  markPrep('test');
+  alert('일반 A4에 인쇄했다면 라벨지와 겹쳐 빛에 비춰보세요.\n어긋나면 설정 > 인쇄 보정 X/Y(mm)를 조정하세요.');
+};
+
+$('btn-bulk').onclick = async () => {
+  if (!current) return;
+  let rows;
+  try { rows = (await backend().all(current.event.id)).filter(r => r.status !== '제외'); }
+  catch (e) { alert('명단을 불러오지 못했습니다: ' + e.message); return; }
+  if (!rows.length) { alert('출력할 명단이 없습니다.'); return; }
+  const per = totalSlots(), pages = Math.ceil(rows.length / per);
+  if (!confirm(`[${eventName()}] ${rows.length}명 전체를 출력합니다. 새 라벨지 ${pages}장이 필요합니다.\n급지함에 새 라벨지를 넣었나요?`)) return;
+  const pageList = [];
+  await ensureQR();
+  for (let i = 0; i < rows.length; i += per) {
+    pageList.push(rows.slice(i, i + per).map((p, k) => ({ slot: k, html: badgeFor(p) })));
+  }
+  const prev = state;
+  state = 'paused'; render();
+  printing = true;
+  try { await printPages(pageList, rows); } finally { printing = false; }
+  const ids = rows.map(r => r.id);
+  ids.forEach(id => printed.add(id)); savePrinted();
+  queue = queue.filter(p => !ids.includes(p.id));
+  sheet.used = []; saveSheet();
+  state = prev === 'reload' ? 'running' : prev;
+  await enqueue({ action: 'mark', ids });
+  markPrep('bulk');
+  refreshAll().catch(() => {});
+  render();
+};
+
+const formUrl = () => FORM_BASE ? FORM_BASE + '?e=' + encodeURIComponent(current.event.id)
+  : cfg.apiUrl + (cfg.apiUrl.includes('?') ? '&' : '?') + 'e=' + encodeURIComponent(current.event.id);
+
+$('btn-poster').onclick = async () => {
+  if (!current) return;
+  if (!cfg.apiUrl) { alert('데모 모드에서는 QR 포스터를 만들 수 없습니다.'); return; }
+  let svg;
+  try { svg = await BadgeRender.qrSVG(formUrl(), '100%'); } catch (e) { alert(e.message); return; }
+  $('print-root').innerHTML = `<div class="page"><div class="poster">
+      <h1>${esc(eventName())}</h1>
+      <div class="p-sub">현장 등록</div>
+      <div class="p-qr">${svg}</div>
+      <div class="p-steps">① 휴대폰 카메라로 QR 코드를 찍어주세요<br>② 소속 · 성명 · 직책을 입력해주세요<br>③ 데스크에서 명찰을 받아가세요</div>
+    </div></div>`;
+  await new Promise(r => setTimeout(r, 100));
+  window.print();
+  markPrep('poster');
+};
+
+/* 라벨 방식: 배경 명찰(이름 없이)을 명찰 용지 설정(설정의 '명찰 전체' 용지)으로 미리 출력 */
+$('btn-bgprint').onclick = async () => {
+  if (!labelMode()) return;
+  const L = pick(cfg, LAYOUT_KEYS), per = L.cols * L.rows;
+  const ans = prompt(`[${eventName()}] 배경 명찰을 몇 장 출력할까요?\n(A4 한 장에 ${per}개, ${L.labelW}×${L.labelH}mm 칸 · 회색 선을 따라 자르세요)`, String(per * 5));
+  const n = Math.round(Number(ans));
+  if (!n || n < 1) return;
+  const design = BadgeRender.backgroundDesign(current.design);
+  const html = BadgeRender.badgeHTML(design, current.bg, {}, eventName());
+  const pages = [];
+  for (let i = 0; i < n; i += per) {
+    pages.push([...Array(Math.min(per, n - i)).keys()].map(k => ({ slot: k, html, cls: 'cut' })));
+  }
+  const prev = state;
+  state = 'paused'; render();
+  printing = true;
+  try { await printPages(pages, [], { layout: L, design }); } finally { printing = false; }
+  markPrep('bg');
+  state = prev; render();
+};
+
+/* =========================================================
+ * 엑셀 명단 올리기 (공통 양식 '명찰_명단양식.xlsx' — 다른 엑셀도 제목 줄을 알아서 찾음)
+ * ========================================================= */
+let xlsxLib, importRows = [];
+function loadXLSX() {
+  if (!xlsxLib) {
+    xlsxLib = new Promise((res, rej) => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      s.onload = res;
+      s.onerror = () => { xlsxLib = null; rej(new Error('엑셀 읽기 도구를 불러오지 못했습니다 (인터넷 연결 확인)')); };
+      document.head.appendChild(s);
+    });
+  }
+  return xlsxLib;
+}
+
+// 제목 줄에서 이런 이름이면 그 열로 인식
+const COLS = {
+  org: ['소속', '회사', '회사명', '기관', '기관명', '소속기관', '단체', '단체명', '업체', '업체명', '기업', '기업명', '소속회사'],
+  name: ['성명', '이름', '성함', '참석자', '참가자', '참석자명', '참가자명', '대표자', '대표자명'],
+  title: ['직책', '직위', '직함', '직급', '직책/직위', '직위/직책'],
+};
+const cellText = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+const normHead = v => cellText(v).replace(/[\s*()（）]/g, '').replace(/\(필수\)/g, '');
+
+/** 엑셀 표 → [{org, name, title}] — 제목 줄을 위쪽 10줄 안에서 찾고, 못 찾으면 A·B·C = 소속·성명·직책 */
+function parseRoster(rows) {
+  let hi = -1, idx = null;
+  for (let r = 0; r < Math.min(rows.length, 10) && hi < 0; r++) {
+    const heads = rows[r].map(normHead), found = {};
+    for (const [k, names] of Object.entries(COLS)) {
+      const c = heads.findIndex(h => names.includes(h));
+      if (c >= 0) found[k] = c;
+    }
+    if (found.name != null) { hi = r; idx = found; }
+  }
+  if (hi < 0) idx = { org: 0, name: 1, title: 2 };
+  // 행사 등록 폼의 추가 항목(연락처·소속 구분 등)과 같은 이름의 열
+  const heads = hi >= 0 ? rows[hi].map(normHead) : [];
+  const extraCols = (current ? current.design.form.fields : []).map(f => ({ label: f.label, col: heads.indexOf(normHead(f.label)) })).filter(x => x.col >= 0);
+  const get = (row, k) => (idx[k] == null ? '' : cellText(row[idx[k]]));
+  const people = [], skipped = [];
+  rows.slice(hi + 1).forEach((row, i) => {
+    const p = { org: get(row, 'org').slice(0, 40), name: get(row, 'name').slice(0, 20), title: get(row, 'title').slice(0, 20), extra: {} };
+    extraCols.forEach(x => { const v = cellText(row[x.col]); if (v) p.extra[x.label] = v.slice(0, 100); });
+    if (!p.name) { if (p.org || p.title) skipped.push(hi + 2 + i); return; }
+    people.push(p);
+  });
+  return { people, skipped, headerFound: hi >= 0, headerRow: hi + 1 };
+}
+
+$('btn-import').onclick = () => {
+  if (!current) { alert('먼저 상단에서 행사를 선택하세요.'); return; }
+  $('import-file').click();
+};
+
+$('import-file').onchange = async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f || !current) return;
+  let parsed;
+  try {
+    await loadXLSX();
+    const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+    const sheetName = wb.SheetNames.includes('명단') ? '명단' : wb.SheetNames[0];
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: '', raw: false, blankrows: false });
+    parsed = parseRoster(rows);
+    parsed.sheetName = sheetName;
+  } catch (err) {
+    alert('엑셀 파일을 읽지 못했습니다: ' + err.message);
+    return;
+  }
+  // 이미 이 행사 명단에 있는 사람(소속+성명 같음), 파일 안 중복은 건너뜀
+  try { allRows = await backend().all(current.event.id); renderAll(); } catch (err) { /* 못 받아도 파일 안 중복만 검사 */ }
+  const key = p => p.name + '|' + p.org;
+  const existing = new Set(allRows.filter(r => r.status !== '제외').map(key)), seen = new Set();
+  importRows = parsed.people.map(p => {
+    const k = key(p), dup = existing.has(k) ? '이미 명단에 있음' : (seen.has(k) ? '파일 안 중복' : '');
+    seen.add(k);
+    return Object.assign({ dup }, p);
+  });
+  const add = importRows.filter(p => !p.dup).length, dupCount = importRows.length - add;
+  $('imp-event').textContent = eventName();
+  $('imp-file').textContent = `${f.name} · '${parsed.sheetName}' 시트 · ` +
+    (parsed.headerFound ? `${parsed.headerRow}번째 줄을 제목으로 인식` : '제목 줄을 못 찾아 A·B·C열을 소속·성명·직책으로 읽음');
+  $('imp-sum').innerHTML = `<span class="add">새로 추가 ${add}명</span>` +
+    (dupCount ? `<span>중복 건너뜀 ${dupCount}명</span>` : '') +
+    (parsed.skipped.length ? `<span title="${parsed.skipped.join(', ')}번째 줄">성명 없는 줄 ${parsed.skipped.length}개</span>` : '');
+  $('imp-table').innerHTML = '<tr><th>#</th><th>소속</th><th>성명</th><th>직책</th><th></th></tr>' +
+    importRows.slice(0, 200).map((p, i) => `<tr class="${p.dup ? 'dup' : ''}"><td>${i + 1}</td><td>${esc(p.org)}</td><td><b>${esc(p.name)}</b></td><td>${esc(p.title)}</td><td>${esc(p.dup)}</td></tr>`).join('') +
+    (importRows.length > 200 ? `<tr><td colspan="5">… 외 ${importRows.length - 200}명</td></tr>` : '');
+  $('imp-ok').disabled = !add;
+  $('imp-ok').textContent = add ? `${add}명 올리기` : '올릴 사람 없음';
+  $('dlg-import').showModal();
+};
+
+$('import-form').addEventListener('submit', async e => {
+  if (!e.submitter || e.submitter.value !== 'ok' || !current) return;
+  const people = importRows.filter(p => !p.dup).map(({ org, name, title, extra }) => ({ org, name, title, extra }));
+  const queueNow = $('import-form').elements.impmode.value === 'queue';
+  if (!people.length) return;
+  const btn = $('btn-import');
+  btn.disabled = true;
+  let done = 0;
+  try {
+    for (let i = 0; i < people.length; i += 300) { // 300명씩 나눠 보냄
+      btn.textContent = `올리는 중… ${done}/${people.length}`;
+      const j = await backend().write({ action: 'addMany', event: current.event.id, people: people.slice(i, i + 300), queue: queueNow });
+      done += j.added || 0;
+    }
+    note(`엑셀에서 ${done}명 ${queueNow ? '출력 대기열에 추가' : '사전등록'}했습니다.`, 'ok');
+    if (done) markPrep('roster');
+  } catch (err) {
+    alert(`올리다가 멈췄습니다 (${done}명까지 완료): ${err.message}\n다시 올리면 이미 올라간 사람은 중복으로 건너뜁니다.`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📤 올리기';
+    lastAll = 0;
+    poll();
+  }
+});
+
+/** 양식 받기: 행사에 추가 항목이 있으면 그 열까지 넣은 양식을 만들어 줌, 없으면 공통 양식 파일 */
+$('btn-template').onclick = async () => {
+  const fields = current ? current.design.form.fields : [];
+  if (!fields.length) {
+    const a = document.createElement('a');
+    a.href = '명찰_명단양식.xlsx'; a.download = '명찰_명단양식.xlsx'; a.click();
+    return;
+  }
+  try { await loadXLSX(); } catch (e) { alert(e.message); return; }
+  const head = ['소속', '성명', '직책'].concat(fields.map(f => f.label), ['비고']);
+  const ws = XLSX.utils.aoa_to_sheet([head]);
+  ws['!cols'] = head.map(h => ({ wch: h === '소속' ? 30 : 16 }));
+  const guide = XLSX.utils.aoa_to_sheet([
+    ['명찰 명단 작성 방법 — ' + eventName()], [],
+    ["1. '명단' 시트 2번째 줄부터 한 사람씩 입력하세요. 성명은 필수입니다."],
+    ['2. 첫 줄 제목은 바꾸지 마세요. 비고는 명찰에 출력되지 않습니다.'],
+    ...fields.filter(f => f.type === 'select').map(f => [`· ${f.label}: ${f.options.join(' / ')} 중 하나`]),
+  ]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '명단');
+  XLSX.utils.book_append_sheet(wb, guide, '작성방법');
+  XLSX.writeFile(wb, `명찰_명단양식_${safeFileName(eventName())}.xlsx`);
+};
+
+const safeFileName = s => String(s).replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+const fmtFull = iso => {
+  if (!iso) return '';
+  const d = new Date(iso), p = n => String(n).padStart(2, '0');
+  return isNaN(d) ? '' : `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+/** 도착으로 보는 기준: 체크인 시각이 있거나, 현장에서 등록·출력된 사람 */
+const arrived = r => !!r.checkinAt || r.status === '출력완료' || r.status === '대기';
+
+/** 결과보고용 참석자 명단: 요약 · 명단(추가 항목·도착·출력·세션 출석) · 출석 기록 시트 */
+$('btn-export').onclick = async () => {
+  if (!current) return;
+  const btn = $('btn-export');
+  btn.disabled = true; btn.textContent = '만드는 중…';
+  try {
+    await loadXLSX();
+    const id = current.event.id;
+    const [rows, att] = await Promise.all([backend().all(id), backend().attendance(id).catch(() => [])]);
+    const list = rows.filter(r => r.status !== '제외').sort((a, b) => String(a.time).localeCompare(String(b.time)));
+    const fieldLabels = current.design.form.fields.map(f => f.label);
+    const extraKeys = fieldLabels.slice();
+    list.forEach(r => Object.keys(r.extra || {}).forEach(k => { if (k !== '_share' && !extraKeys.includes(k)) extraKeys.push(k); }));
+    const sessions = current.design.ops.sessions.length ? current.design.ops.sessions.slice() : [...new Set(att.map(a => a.session))];
+    const attBy = {};
+    att.forEach(a => { (attBy[a.id] = attBy[a.id] || new Set()).add(a.session); });
+
+    const head = ['번호', '소속', '성명', '직책'].concat(extraKeys, ['명함 공개', '상태', '도착(체크인)', '등록경로', '등록시각', '출력횟수', '최종출력시각'], sessions.map(s => '출석: ' + s));
+    const body = list.map((r, i) => [i + 1, r.org, r.name, r.title]
+      .concat(extraKeys.map(k => (r.extra || {})[k] || ''))
+      .concat([(r.extra || {})._share ? 'O' : '', r.status, fmtFull(r.checkinAt) || (arrived(r) ? fmtFull(r.time) : ''), r.source, fmtFull(r.time), r.count, fmtFull(r.printedAt)])
+      .concat(sessions.map(s => (attBy[r.id] && attBy[r.id].has(s) ? 'O' : ''))));
+    const ws = XLSX.utils.aoa_to_sheet([head].concat(body));
+    ws['!cols'] = head.map(h => ({ wch: h === '소속' ? 28 : (/시각|체크인/.test(h) ? 17 : Math.max(8, h.length * 2)) }));
+    ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: body.length, c: head.length - 1 } }) };
+
+    const pre = list.filter(r => r.source === '엑셀'), onsite = list.filter(r => r.source !== '엑셀');
+    const summary = [
+      ['행사명', eventName()], ['내보낸 시각', fmtFull(new Date().toISOString())], [],
+      ['전체 명단', list.length + '명'],
+      ['도착(참석)', list.filter(arrived).length + '명'],
+      ['  - 사전등록 후 도착', pre.filter(arrived).length + '명'],
+      ['  - 현장 신규 등록', onsite.length + '명'],
+      ['사전등록 미도착', pre.filter(r => !arrived(r)).length + '명'],
+      ['명찰 출력 완료', list.filter(r => r.status === '출력완료').length + '명'],
+      ['명함 공개 동의', list.filter(r => (r.extra || {})._share).length + '명'],
+      [],
+    ];
+    current.design.form.fields.filter(f => f.type === 'select').forEach(f => {
+      summary.push([f.label + '별 (도착 기준)']);
+      f.options.concat(['(미입력)']).forEach(o => {
+        const n = list.filter(r => arrived(r) && (((r.extra || {})[f.label]) || '(미입력)') === o).length;
+        if (n || o !== '(미입력)') summary.push(['  ' + o, n + '명']);
+      });
+      summary.push([]);
+    });
+    if (sessions.length) {
+      summary.push(['세션별 출석']);
+      sessions.forEach(s => summary.push(['  ' + s, att.filter(a => a.session === s).length + '명']));
+    }
+    const wsSum = XLSX.utils.aoa_to_sheet(summary);
+    wsSum['!cols'] = [{ wch: 24 }, { wch: 30 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsSum, '요약');
+    XLSX.utils.book_append_sheet(wb, ws, '참석자 명단');
+    if (att.length) {
+      const wsAtt = XLSX.utils.aoa_to_sheet([['시각', '성명', '소속', '세션']].concat(att.map(a => [fmtFull(a.time), a.name, a.org, a.session])));
+      wsAtt['!cols'] = [{ wch: 17 }, { wch: 12 }, { wch: 28 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, wsAtt, '출석 기록');
+    }
+    const d = new Date(), ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    XLSX.writeFile(wb, `${safeFileName(eventName())}_참석자명단_${ymd}.xlsx`);
+  } catch (err) {
+    alert('명단을 내보내지 못했습니다: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '📊 엑셀 받기';
+  }
+};
+
+/* 명단 비우기 — 행사명을 똑같이 입력해야 실행 (서버도 한 번 더 확인) */
+$('btn-clear').onclick = async () => {
+  if (!current) return;
+  $('clr-event').textContent = eventName();
+  $('clr-confirm').value = '';
+  $('clr-ok').disabled = true;
+  $('clr-count').textContent = allRows.length;
+  $('dlg-clear').showModal();
+  try { $('clr-count').textContent = (await backend().all(current.event.id)).length; } catch (e) { /* 표시만 */ }
+};
+$('clr-confirm').addEventListener('input', () => { $('clr-ok').disabled = $('clr-confirm').value.trim() !== eventName(); });
+$('clear-form').addEventListener('submit', async e => {
+  if (!e.submitter || e.submitter.value !== 'ok' || !current) return;
+  const name = $('clr-confirm').value.trim();
+  if (name !== eventName()) return;
+  try {
+    let removed;
+    if (cfg.apiUrl) removed = (await remote.post({ action: 'clearPeople', event: current.event.id, confirmName: name })).removed;
+    else { const n = demo.db().length; demo.save([]); removed = { people: n, attendance: 0 }; }
+    queue = []; allRows = []; lastAll = 0;
+    sheet.used = []; saveSheet();
+    if (state === 'reload') state = 'running';
+    note(`명단을 비웠습니다 (등록자 ${removed.people}명, 출석 ${removed.attendance}건).`, 'ok');
+    $('dlg-after').close();
+    renderAll(); render(); poll();
+  } catch (err) {
+    alert('명단을 비우지 못했습니다: ' + err.message);
+  }
+});
+
+/* 행사 준비 · 행사 후 창 — 끝낸 단계는 행사별로 이 PC에 기억 */
+const prepDone = () => (LS.get('prep', {})[current ? current.event.id : ''] || {});
+function markPrep(step, on) {
+  if (!current) return;
+  const all = LS.get('prep', {}), cur = all[current.event.id] || {};
+  cur[step] = on === undefined ? true : on;
+  all[current.event.id] = cur;
+  LS.set('prep', all);
+  renderPrep();
+}
+function renderPrep() {
+  const done = prepDone();
+  const pre = allRows.filter(r => r.source === '엑셀').length;
+  $('prep-roster-info').textContent = pre ? `사전 명단 ${pre}명 올라가 있음 · 더 올려도 중복은 건너뜁니다` : '엑셀 양식을 받아 채운 뒤 올립니다';
+  $('dlg-prep').querySelectorAll('[data-step]').forEach(li => {
+    li.classList.toggle('done', !!done[li.dataset.step] || (li.dataset.step === 'roster' && pre > 0 && done.roster !== false));
+  });
+}
+$('btn-prep').onclick = () => { renderPrep(); $('dlg-prep').showModal(); };
+$('btn-after').onclick = () => $('dlg-after').showModal();
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('dialog').close());
+$('dlg-prep').addEventListener('click', e => {
+  const t = e.target.closest('[data-toggle]');
+  if (!t) return;
+  const li = t.closest('[data-step]');
+  markPrep(li.dataset.step, !li.classList.contains('done'));
+});
+// 창 바깥(어두운 부분)을 누르면 닫기
+['dlg-prep', 'dlg-after'].forEach(id => $(id).addEventListener('click', e => { if (e.target === $(id)) $(id).close(); }));
+
+/* 데모 */
+$('btn-fake').onclick = () => { demo.fake(); poll(); };
+$('btn-fake4').onclick = () => { for (let i = 0; i < 4; i++) demo.fake(); poll(); };
+$('btn-demo-reset').onclick = () => {
+  if (!confirm('데모 데이터와 출력 기록을 모두 지울까요?')) return;
+  demo.save([]); printed.clear(); savePrinted(); sheet.used = []; saveSheet(); outbox = []; saveOutbox();
+  state = 'running'; queue = []; allRows = []; renderAll(); poll();
+};
+
+/* =========================================================
+ * 설정 창
+ * ========================================================= */
+const form = $('cfg-form');
+let layoutDraft = null; // 설정 창에서 편집 중인 두 용지 값 { full, label }
+let layoutTarget = 'full';
+let draftStock = 'ls3510';
+$('preset-formtec').innerHTML = Object.entries(BadgeRender.LABEL_STOCKS)
+  .map(([id, s]) => `<option value="${id}">${esc(s.code)} · ${s.w}×${s.h} · ${s.cols}×${s.rows} (${s.cols * s.rows}칸) · ${esc(s.use)}</option>`).join('');
+
+function fillLayout(L) { LAYOUT_KEYS.forEach(k => { form.elements[k].value = L[k]; }); }
+function readLayout() {
+  const L = {};
+  LAYOUT_KEYS.forEach(k => { L[k] = Number(form.elements[k].value) || 0; });
+  L.cols = Math.max(1, Math.round(L.cols)); L.rows = Math.max(1, Math.round(L.rows));
+  return L;
+}
+
+$('btn-settings').onclick = () => {
+  Object.keys(DEFAULTS).forEach(k => {
+    const el = form.elements[k];
+    if (!el || LAYOUT_KEYS.includes(k)) return;
+    if (el.type === 'checkbox') el.checked = !!cfg[k]; else el.value = cfg[k];
+  });
+  // 라벨 방식 용지 = 지금 행사가 쓰는 폼텍 라벨지 (없으면 LS-3510)
+  draftStock = current ? current.design.label.stock : 'ls3510';
+  const st = BadgeRender.LABEL_STOCKS[draftStock];
+  $('layout-target').options[1].textContent = `라벨 부착 방식용 — 폼텍 ${st ? st.code : draftStock} (이 PC 보정값)`;
+  layoutDraft = { full: pick(cfg, LAYOUT_KEYS), label: BadgeRender.stockLayout(draftStock, (cfg.stockLayouts || {})[draftStock]) };
+  $('layout-target').value = layoutTarget = labelMode() ? 'label' : 'full';
+  fillLayout(layoutDraft[layoutTarget]);
+  $('preset').value = '';
+  $('conn-result').textContent = '';
+  $('dlg').showModal();
+};
+
+$('layout-target').addEventListener('change', e => {
+  layoutDraft[layoutTarget] = readLayout();   // 바꾸기 전 용지 값 보관
+  layoutTarget = e.target.value;
+  fillLayout(layoutDraft[layoutTarget]);
+});
+
+/** 용지 값을 뺀 나머지 설정 */
+function readForm() {
+  const c = {};
+  Object.keys(DEFAULTS).forEach(k => {
+    const el = form.elements[k];
+    if (!el || LAYOUT_KEYS.includes(k)) return;
+    c[k] = el.type === 'checkbox' ? el.checked : (NUM_KEYS.includes(k) ? Number(el.value) || 0 : el.value.trim());
+  });
+  c.pollSec = Math.max(2, c.pollSec);
+  return c;
+}
+
+function centerMargins() {
+  const f = form.elements, n = k => Number(f[k].value) || 0;
+  f.marginL.value = +((210 - n('cols') * n('labelW') - (n('cols') - 1) * n('gapX')) / 2).toFixed(2);
+  f.marginT.value = +((297 - n('rows') * n('labelH') - (n('rows') - 1) * n('gapY')) / 2).toFixed(2);
+}
+
+$('preset').onchange = e => {
+  const p = PRESETS[e.target.value];
+  if (!p) return;
+  const offX = form.elements.offX.value, offY = form.elements.offY.value; // 프린터 보정값은 유지
+  LAYOUT_KEYS.forEach(k => { if (k in p) form.elements[k].value = p[k]; });
+  form.elements.offX.value = offX; form.elements.offY.value = offY;
+  if (!p.exact) { form.elements.gapX.value = 0; form.elements.gapY.value = 0; centerMargins(); }
+};
+$('btn-center').onclick = centerMargins;
+
+$('btn-conn').onclick = async () => {
+  const c = readForm(), out = $('conn-result');
+  if (!c.apiUrl) { out.textContent = 'URL이 비어 있으면 데모 모드로 동작합니다.'; return; }
+  out.textContent = '확인 중…';
+  const saved = cfg; cfg = Object.assign({}, cfg, c);
+  try { const j = await remote.ping(); out.textContent = `✅ 연결 성공 (행사 ${j.events}개)`; out.style.color = 'var(--ok)'; }
+  catch (e) { out.textContent = '❌ ' + e.message; out.style.color = 'var(--bad)'; }
+  finally { cfg = saved; }
+};
+
+// 'close' 이벤트는 창이 백그라운드면 늦게 오거나 안 와서, [저장] 버튼 제출 시점에 바로 처리
+form.addEventListener('submit', e => {
+  if (!e.submitter || e.submitter.value !== 'save') return;
+  const c = readForm();
+  layoutDraft[$('layout-target').value] = readLayout();
+  const before = lay();
+  const serverChanged = c.apiUrl !== cfg.apiUrl;
+  // 라벨지 규격과 다른 값만 이 PC 보정값으로 저장
+  const base = BadgeRender.stockLayout(draftStock), diff = {};
+  LAYOUT_KEYS.forEach(k => { if (layoutDraft.label[k] !== base[k]) diff[k] = layoutDraft.label[k]; });
+  const stockLayouts = Object.assign({}, cfg.stockLayouts || {}, { [draftStock]: diff });
+  cfg = Object.assign({}, cfg, c, layoutDraft.full, { stockLayouts });
+  delete cfg.labelLayout; // 예전 방식 값 정리
+  const layoutChanged = ['cols', 'rows'].some(k => lay()[k] !== before[k]);
+  if (serverChanged) { cfg.eventId = ''; events = []; current = null; queue = []; allRows = []; connOk = null; lastAll = 0; renderAll(); renderPreview(); }
+  saveCfg();
+  if (layoutChanged) { sheet.used = []; saveSheet(); }
+  if (sheet.used.length >= totalSlots()) { sheet.used = []; saveSheet(); }
+  render(); poll();
+});
+
+/* =========================================================
+ * 시작
+ * ========================================================= */
+render();
+renderAll();
+// 운영진 로그인 뒤에 명단 수신·자동 출력 시작
+BadgeGate.require('출력 스테이션').then(() => {
+  poll();
+  setInterval(() => {
+    if (Date.now() - lastPoll >= cfg.pollSec * 1000) poll();
+    else maybePrint(); // 모아찍기 대기시간 경과 체크
+  }, 1000);
+});
+</script>
+</body>
+</html>

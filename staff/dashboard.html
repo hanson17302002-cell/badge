@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>현장 대시보드</title>
+<script src="config.js?v=20261002f"></script>
+<script src="gate.js?v=20261013a"></script>
+<style>
+  :root { --bg:#0f141b; --card:#18202b; --line:#2a3442; --text:#eef2f7; --muted:#8b97a7; --accent:#4d8dff; --ok:#34c47c; --warn:#f2a93b; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; background:var(--bg); color:var(--text); }
+  header { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  header h1 { margin:0; font-size:24px; }
+  header select { font:inherit; font-size:16px; padding:6px 10px; border-radius:8px; background:var(--card); color:var(--text); border:1px solid var(--line); max-width:440px; }
+  header .grow { flex:1; }
+  #clock { font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; }
+  #updated { color:var(--muted); font-size:13px; }
+  main { padding:18px 22px; display:grid; gap:16px; grid-template-columns:repeat(12, 1fr); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; min-width:0; }
+  .card h2 { margin:0 0 12px; font-size:16px; color:var(--muted); font-weight:600; }
+  .kpi { grid-column:span 2; }
+  .kpi.big { grid-column:span 4; }
+  .kpi .v { font-size:44px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .kpi.big .v { font-size:64px; }
+  .kpi .v small { font-size:.45em; color:var(--muted); font-weight:600; }
+  .kpi .s { color:var(--muted); margin-top:6px; font-size:14px; }
+  .bar { height:10px; background:#263040; border-radius:6px; margin-top:12px; overflow:hidden; }
+  .bar i { display:block; height:100%; background:var(--ok); border-radius:6px; }
+  .chart { grid-column:span 8; }
+  .side { grid-column:span 4; }
+  .half { grid-column:span 6; }
+  @media (max-width:1200px) { .kpi, .kpi.big { grid-column:span 6; } .chart, .side, .half { grid-column:span 12; } }
+  svg text { fill:var(--muted); font-size:12px; }
+  .hbar { display:grid; grid-template-columns:120px 1fr 56px; gap:10px; align-items:center; margin:8px 0; font-size:15px; }
+  .hbar .t { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hbar .n { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
+  .hbar .track { height:14px; background:#263040; border-radius:7px; overflow:hidden; }
+  .hbar .track i { display:block; height:100%; background:var(--accent); border-radius:7px; }
+  .recent { list-style:none; margin:0; padding:0; }
+  .recent li { display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:16px; }
+  .recent li:last-child { border-bottom:0; }
+  .recent .tm { color:var(--muted); font-variant-numeric:tabular-nums; width:48px; flex:0 0 auto; }
+  .recent .who { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .recent .who small { color:var(--muted); margin-left:6px; }
+  .tag { font-size:12px; padding:2px 7px; border-radius:6px; background:#263040; color:var(--muted); }
+  .tag.pre { background:#1d3557; color:#9cc3ff; }
+  .empty { color:var(--muted); padding:16px 0; }
+  .err { color:#ff8a8a; padding:30px; text-align:center; font-size:18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 현장 대시보드</h1>
+  <select id="event-sel"></select>
+  <span class="grow"></span>
+  <span id="updated"></span>
+  <a href="usage.html" style="color:var(--muted);font-size:13px">🔐 접속 기록</a>
+  <span id="clock"></span>
+</header>
+<div id="err" class="err" hidden></div>
+<main id="main">
+  <section class="card kpi big"><h2>도착 (참석)</h2><div class="v" id="k-arrived">–</div><div class="s" id="k-arrived-s"></div><div class="bar"><i id="k-arrived-bar" style="width:0"></i></div></section>
+  <section class="card kpi"><h2>사전등록 도착</h2><div class="v" id="k-pre">–</div><div class="s" id="k-pre-s"></div></section>
+  <section class="card kpi"><h2>현장 신규 등록</h2><div class="v" id="k-onsite">–</div><div class="s">QR · 데스크 등록</div></section>
+  <section class="card kpi"><h2>명찰 출력 대기</h2><div class="v" id="k-wait">–</div><div class="s" id="k-wait-s"></div></section>
+  <section class="card kpi"><h2>사전등록 미도착</h2><div class="v" id="k-notyet">–</div><div class="s">아직 오지 않은 분</div></section>
+
+  <section class="card chart"><h2 id="chart-title">시간대별 도착 (10분 단위)</h2><div id="chart"></div></section>
+  <section class="card side"><h2>최근 도착</h2><ul class="recent" id="recent"></ul></section>
+
+  <section class="card half" id="kind-card" hidden><h2 id="kind-title">구분별 도착</h2><div id="kind"></div></section>
+  <section class="card half" id="sess-card" hidden><h2>세션별 출석</h2><div id="sess"></div></section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let SRV = window.BADGE_SERVER || {};
+try { const c = JSON.parse(localStorage.getItem('badge.cfg') || '{}'); if (c.apiUrl) SRV = { apiUrl: c.apiUrl, key: c.key }; } catch (e) {}
+
+/** 서버 인증: 로그인 통행증(token)이 있으면 그것을, 없으면 이 PC의 스테이션 키를 보냄 */
+const authParams = () => { const t = window.BadgeGate ? BadgeGate.token() : ''; return t ? { token: t } : { key: SRV.key || '' }; };
+/** 통행증이 만료되면 로그인 창을 다시 띄우고, 로그인한 뒤 같은 요청을 한 번 더 보냄 */
+async function withAuth(run) {
+  try { return await run(); } catch (e) {
+    if (window.BadgeGate && BadgeGate.isAuthError(e)) { await BadgeGate.relogin(); return run(); }
+    throw e;
+  }
+}
+function api(action, params) { return withAuth(() => apiOnce(action, params)); }
+async function apiOnce(action, params) {
+  const q = Object.entries(Object.assign(authParams(), { action }, params || {})).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+  for (let attempt = 0; ; attempt++) {
+    const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 20000);
+    try {
+      const r = await fetch(SRV.apiUrl + '?' + q, { cache: 'no-store', signal: ctrl.signal });
+      let j;
+      try { j = await r.json(); } catch (e) { throw new TypeError('bad response'); }
+      if (!j.ok) throw new Error(j.error || '서버 오류');
+      return j;
+    } catch (e) {
+      if (e instanceof TypeError && attempt < 2) { await new Promise(res => setTimeout(res, 1500 * (attempt + 1))); continue; }
+      if (e.name === 'AbortError') throw new Error('서버 응답 시간 초과');
+      if (e instanceof TypeError) throw new Error('서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도하세요.');
+      throw e;
+    } finally { clearTimeout(t); }
+  }
+}
+
+let eventId = new URLSearchParams(location.search).get('e') || '';
+let design = null, eventName = '';
+
+/** 도착 기준: 체크인 시각이 있거나 현장에서 등록·출력된 사람. 도착 시각 = 체크인 시각(없으면 등록 시각) */
+const arrivedAt = r => r.checkinAt || ((r.status === '출력완료' || r.status === '대기') ? r.time : '');
+const hm = iso => { const d = new Date(iso); return isNaN(d) ? '' : String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+
+async function loadEvents() {
+  const evs = (await api('events')).items;
+  const on = evs.filter(e => e.status !== '종료').reverse(), off = evs.filter(e => e.status === '종료').reverse();
+  if (!eventId && on.length) eventId = on[0].id;
+  $('event-sel').innerHTML = on.concat(off).map(e => `<option value="${esc(e.id)}"${e.id === eventId ? ' selected' : ''}>${esc(e.name)}${e.status === '종료' ? ' (종료)' : ''}</option>`).join('');
+}
+$('event-sel').onchange = e => { eventId = e.target.value; history.replaceState(null, '', '?e=' + encodeURIComponent(eventId)); design = null; refresh(); };
+
+async function refresh() {
+  if (!eventId) return;
+  try {
+    if (!design) { const j = await api('event', { id: eventId }); design = j.design || {}; eventName = j.event.name; document.title = '대시보드 · ' + eventName; }
+    const [people, att] = await Promise.all([api('all', { event: eventId }).then(j => j.items), api('attendance', { event: eventId }).then(j => j.items).catch(() => [])]);
+    render(people.filter(r => r.status !== '제외'), att);
+    $('err').hidden = true; $('main').hidden = false;
+    $('updated').textContent = '갱신 ' + hm(new Date().toISOString()) + ' · 15초마다 자동 갱신';
+  } catch (e) {
+    $('err').hidden = false; $('err').textContent = '불러오지 못했습니다: ' + e.message + ' (잠시 후 다시 시도합니다)';
+  }
+}
+
+function render(list, att) {
+  const arrived = list.filter(r => arrivedAt(r));
+  const pre = list.filter(r => r.source === '엑셀'), preArrived = pre.filter(r => arrivedAt(r));
+  const onsite = list.filter(r => r.source !== '엑셀');
+  const total = list.length;
+  $('k-arrived').innerHTML = `${arrived.length}<small> / ${total}명</small>`;
+  $('k-arrived-s').textContent = total ? `전체 명단의 ${Math.round(arrived.length / total * 100)}%` : '아직 명단이 없습니다';
+  $('k-arrived-bar').style.width = (total ? arrived.length / total * 100 : 0) + '%';
+  $('k-pre').innerHTML = `${preArrived.length}<small> / ${pre.length}</small>`;
+  $('k-pre-s').textContent = pre.length ? `도착률 ${Math.round(preArrived.length / pre.length * 100)}%` : '사전등록 명단 없음';
+  $('k-onsite').textContent = onsite.length;
+  const waiting = list.filter(r => r.status === '대기').length;
+  $('k-wait').textContent = waiting;
+  $('k-wait-s').textContent = `출력 완료 ${list.filter(r => r.status === '출력완료').length}명`;
+  $('k-notyet').textContent = pre.length - preArrived.length;
+
+  renderChart(arrived.map(r => new Date(arrivedAt(r))).filter(d => !isNaN(d)));
+
+  const recent = arrived.slice().sort((a, b) => String(arrivedAt(b)).localeCompare(String(arrivedAt(a)))).slice(0, 9);
+  $('recent').innerHTML = recent.length ? recent.map(r => `<li><span class="tm">${hm(arrivedAt(r))}</span>
+      <span class="who">${esc(r.name)}<small>${esc(r.org)}</small></span>
+      <span class="tag ${r.source === '엑셀' ? 'pre' : ''}">${r.source === '엑셀' ? '사전등록' : '현장'}</span></li>`).join('')
+    : '<li class="empty">아직 도착한 분이 없습니다</li>';
+
+  // 구분별 (등록 폼의 첫 번째 '선택형' 항목)
+  const kind = ((design.form && design.form.fields) || []).find(f => f.type === 'select');
+  $('kind-card').hidden = !kind;
+  if (kind) {
+    $('kind-title').textContent = kind.label + '별 도착';
+    const opts = (kind.options || []).concat(['(미입력)']);
+    const rows = opts.map(o => ({ t: o, n: arrived.filter(r => ((r.extra || {})[kind.label] || '(미입력)') === o).length })).filter(x => x.n || x.t !== '(미입력)');
+    $('kind').innerHTML = hbars(rows);
+  }
+  // 세션별 출석
+  const sessions = ((design.ops && design.ops.sessions) || []).slice();
+  att.forEach(a => { if (!sessions.includes(a.session)) sessions.push(a.session); });
+  $('sess-card').hidden = !sessions.length;
+  if (sessions.length) $('sess').innerHTML = hbars(sessions.map(s => ({ t: s, n: att.filter(a => a.session === s).length })), arrived.length);
+}
+
+function hbars(rows, base) {
+  const max = Math.max(1, base || 0, ...rows.map(r => r.n));
+  return rows.map(r => `<div class="hbar"><span class="t" title="${esc(r.t)}">${esc(r.t)}</span><span class="track"><i style="width:${r.n / max * 100}%"></i></span><span class="n">${r.n}</span></div>`).join('');
+}
+
+/** 10분 단위 도착 막대 (첫 도착 ~ 지금/마지막 도착, 최대 최근 6시간) */
+function renderChart(times) {
+  const el = $('chart');
+  if (!times.length) { el.innerHTML = '<div class="empty">도착 기록이 생기면 시간대별로 표시됩니다</div>'; return; }
+  const STEP = 10 * 60000;
+  const last = Math.max(Date.now(), ...times.map(d => +d));
+  let start = Math.floor(Math.min(...times.map(d => +d)) / STEP) * STEP;
+  start = Math.max(start, Math.floor((last - 6 * 3600000) / STEP) * STEP);
+  const n = Math.max(1, Math.floor((last - start) / STEP) + 1);
+  const counts = new Array(n).fill(0);
+  times.forEach(d => { const i = Math.floor((+d - start) / STEP); if (i >= 0 && i < n) counts[i]++; });
+  const W = Math.max(el.clientWidth, 400), H = 260, pad = { l: 34, r: 8, t: 18, b: 28 };
+  const max = Math.max(...counts, 1), bw = (W - pad.l - pad.r) / n;
+  const yTicks = [0, Math.ceil(max / 2), max].filter((v, i, a) => a.indexOf(v) === i);
+  let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="시간대별 도착 인원">`;
+  yTicks.forEach(v => { const y = H - pad.b - (v / max) * (H - pad.t - pad.b); svg += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y}" y2="${y}" stroke="#2a3442"/><text x="${pad.l - 6}" y="${y + 4}" text-anchor="end">${v}</text>`; });
+  const every = Math.ceil(n / 12);
+  counts.forEach((c, i) => {
+    const h = (c / max) * (H - pad.t - pad.b), x = pad.l + i * bw + 2, y = H - pad.b - h;
+    svg += `<rect x="${x}" y="${y}" width="${Math.max(2, bw - 4)}" height="${h}" rx="3" fill="#4d8dff"><title>${hm(new Date(start + i * STEP).toISOString())} · ${c}명</title></rect>`;
+    if (c) svg += `<text x="${x + (bw - 4) / 2}" y="${y - 5}" text-anchor="middle" style="fill:#eef2f7;font-weight:700">${c}</text>`;
+    if (i % every === 0) svg += `<text x="${x + (bw - 4) / 2}" y="${H - 8}" text-anchor="middle">${hm(new Date(start + i * STEP).toISOString())}</text>`;
+  });
+  el.innerHTML = svg + '</svg>';
+}
+
+function tick() { const d = new Date(); $('clock').textContent = hm(d.toISOString()) + ':' + String(d.getSeconds()).padStart(2, '0'); }
+setInterval(tick, 1000); tick();
+
+(async function init() {
+  if (!SRV.apiUrl) { $('err').hidden = false; $('err').textContent = 'config.js 에 서버 정보가 없습니다.'; $('main').hidden = true; return; }
+  await BadgeGate.require('대시보드');
+  try { await loadEvents(); } catch (e) { $('err').hidden = false; $('err').textContent = '서버에 연결하지 못했습니다: ' + e.message; return; }
+  await refresh();
+  setInterval(refresh, 15000);
+  window.addEventListener('resize', () => refresh());
+})();
+</script>
+</body>
+</html>

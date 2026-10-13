@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>접속 기록</title>
+<script src="config.js?v=20261002f"></script>
+<style>
+  :root { --bg:#f4f6f9; --card:#fff; --line:#e3e7ec; --text:#1d232b; --muted:#6b7580; --accent:#2f6fed; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { margin:0 0 4px; font-size:24px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-top:16px; }
+  #lock { max-width:380px; margin:60px auto 0; }
+  #lock input { width:100%; font:inherit; font-size:16px; padding:11px 12px; border:1px solid #cfd6de; border-radius:9px; margin-top:12px; }
+  button { font:inherit; font-weight:700; padding:11px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff; cursor:pointer; }
+  #lock button { width:100%; margin-top:12px; font-size:16px; }
+  button.ghost { background:#eef1f5; color:var(--text); font-weight:600; }
+  button:disabled { opacity:.6; }
+  .err { color:#dc2626; min-height:1.2em; margin-top:10px; font-size:14px; }
+  .bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .bar input, .bar select { font:inherit; padding:9px 10px; border:1px solid #cfd6de; border-radius:9px; background:#fff; }
+  .bar .grow { flex:1; }
+  .people { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { background:#eef3ff; color:#1d4ed8; border-radius:999px; padding:5px 12px; font-size:14px; }
+  .chip b { margin-left:4px; }
+  .tbl { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--muted); font-weight:600; background:#fafbfc; position:sticky; top:0; }
+  td.ua { color:var(--muted); font-size:12px; white-space:normal; min-width:160px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <form id="lock" class="card" autocomplete="off">
+    <h1>🔐 접속 기록</h1>
+    <div class="muted">운영진 화면(출력 스테이션·디자이너·대시보드)에 누가 언제 들어왔는지 봅니다. 관리자 비밀번호가 필요합니다.</div>
+    <input id="pw" type="password" placeholder="관리자 비밀번호" required autofocus>
+    <button type="submit" id="btn-open">열기</button>
+    <div class="err" id="err"></div>
+  </form>
+
+  <div id="view" hidden>
+    <div class="bar">
+      <div><h1>🔐 접속 기록</h1><div class="muted" id="summary"></div></div>
+      <span class="grow"></span>
+      <button class="ghost" id="btn-reload">↻ 새로고침</button>
+      <button class="ghost" id="btn-csv">⬇ 엑셀(CSV) 저장</button>
+      <button class="ghost" id="btn-close">잠그기</button>
+    </div>
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">사용한 사람 (입장 횟수)</div>
+      <div class="people" id="people"></div>
+    </div>
+    <div class="card">
+      <div class="bar" style="margin-bottom:12px">
+        <input id="q" placeholder="소속·성명 검색">
+        <select id="f-page"><option value="">모든 화면</option></select>
+        <span class="muted" id="count"></span>
+      </div>
+      <div class="tbl"><table>
+        <thead><tr><th>시각</th><th>화면</th><th>소속</th><th>성명</th><th>브라우저</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const SRV = (() => {
+  let c = {};
+  try { c = JSON.parse(localStorage.getItem('badge.cfg') || '{}'); } catch (e) {}
+  const b = window.BADGE_SERVER || {};
+  return { apiUrl: c.apiUrl || b.apiUrl || '', key: c.key || b.key || '' };
+})();
+let password = '', rows = [];
+
+const pad = n => String(n).padStart(2, '0');
+function when(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+const clean = s => String(s || '').replace(/^'/, ''); // 시트 수식 방지용 ' 제거
+function device(ua) {
+  if (/iPhone|iPad/.test(ua)) return '아이폰/아이패드';
+  if (/Android/.test(ua)) return '안드로이드';
+  if (/Windows/.test(ua)) return 'Windows PC';
+  if (/Mac OS/.test(ua)) return 'Mac';
+  return ua;
+}
+
+async function load() {
+  const r = await fetch(SRV.apiUrl, { method: 'POST', credentials: 'omit',
+    body: JSON.stringify({ action: 'usageLog', password }) });
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || '불러오지 못했습니다.');
+  rows = j.rows.map(x => ({ ...x, org: clean(x.org), name: clean(x.name) }));
+  $('summary').textContent = `전체 ${j.total}건` + (j.total > rows.length ? ` · 최근 ${rows.length}건 표시` : '') + ` · ${when(new Date().toISOString())} 기준`;
+  const pages = [...new Set(rows.map(x => x.page))];
+  const sel = $('f-page'), cur = sel.value;
+  sel.innerHTML = '<option value="">모든 화면</option>' + pages.map(p => `<option ${p === cur ? 'selected' : ''}>${esc(p)}</option>`).join('');
+  const cnt = {};
+  rows.forEach(x => { const k = x.org + ' ' + x.name; cnt[k] = (cnt[k] || 0) + 1; });
+  $('people').innerHTML = Object.entries(cnt).sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => `<span class="chip">${esc(k)}<b>${n}</b></span>`).join('') || '<span class="muted">아직 기록이 없습니다.</span>';
+  draw();
+}
+
+function filtered() {
+  const q = $('q').value.trim().toLowerCase(), pg = $('f-page').value;
+  return rows.filter(x => (!pg || x.page === pg) && (!q || (x.org + ' ' + x.name).toLowerCase().includes(q)));
+}
+function draw() {
+  const list = filtered();
+  $('count').textContent = list.length + '건';
+  $('rows').innerHTML = list.map(x => `<tr><td>${when(x.time)}</td><td>${esc(x.page)}</td><td>${esc(x.org)}</td><td>${esc(x.name)}</td><td class="ua" title="${esc(x.ua)}">${esc(device(x.ua))}</td></tr>`).join('');
+}
+
+$('lock').addEventListener('submit', async e => {
+  e.preventDefault();
+  password = $('pw').value;
+  $('btn-open').disabled = true; $('err').textContent = '';
+  try {
+    await load();
+    $('lock').hidden = true; $('view').hidden = false;
+  } catch (ex) {
+    $('err').textContent = ex instanceof TypeError ? '서버에 연결하지 못했습니다.' : ex.message;
+    $('pw').value = ''; $('pw').focus();
+  } finally { $('btn-open').disabled = false; }
+});
+$('q').oninput = draw;
+$('f-page').onchange = draw;
+$('btn-reload').onclick = () => load().catch(e => alert(e.message));
+$('btn-close').onclick = () => { password = ''; rows = []; $('rows').innerHTML = ''; $('pw').value = ''; $('view').hidden = true; $('lock').hidden = false; };
+$('btn-csv').onclick = () => {
+  const cell = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const lines = [['시각', '화면', '소속', '성명', '기기', '브라우저'].map(cell).join(',')]
+    .concat(filtered().map(x => [when(x.time), x.page, x.org, x.name, device(x.ua), x.ua].map(cell).join(',')));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv' }));
+  a.download = '접속기록_' + when(new Date().toISOString()).slice(0, 10) + '.csv';
+  a.click();
+};
+if (!SRV.apiUrl) { $('err').textContent = 'config.js 에 서버 정보가 없습니다.'; $('btn-open').disabled = true; }
+</script>
+</body>
+</html>

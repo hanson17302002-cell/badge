@@ -1,0 +1,1439 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>명찰 디자이너</title>
+<script src="config.js?v=20261013a"></script>
+<script src="gate.js?v=20261013a"></script>
+<script src="badge-render.js?v=20261013a"></script>
+<style>
+  :root { --bg:#f2f4f7; --card:#fff; --line:#e1e5ea; --line2:#eef1f4; --text:#1b2129; --muted:#4f5a66; --faint:#7b8794;
+          --accent:#2563eb; --accent-bg:#eaf1ff; --ok:#15803d; --warn:#b45309; --bad:#c62828; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; background:var(--bg); color:var(--text); font-size:14.5px; line-height:1.5; }
+  header { display:flex; align-items:center; gap:10px; padding:10px 18px; background:#fff; border-bottom:1px solid var(--line); flex-wrap:wrap; position:sticky; top:0; z-index:6; }
+  header .logo { font-size:22px; }
+  header select { font:inherit; font-size:17px; font-weight:700; padding:7px 12px; border-radius:9px; border:1px solid #cdd4dc; background:#fff; color:var(--text); max-width:min(480px, 50vw); }
+  header .grow { flex:1; }
+  header .sep { width:1px; height:26px; background:var(--line); }
+  #save-state { font-size:13.5px; color:var(--faint); }
+  #save-state.dirty { color:var(--warn); font-weight:700; }
+  button, .btnlike { font:inherit; font-size:14px; padding:7px 13px; border:1px solid #cdd4dc; border-radius:9px; background:#fff; color:var(--text); cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:5px; }
+  button:hover, .btnlike:hover { border-color:#98a3b0; background:#fafbfc; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:700; }
+  button.primary:hover { background:#1d4ed8; }
+  button.danger { color:var(--bad); border-color:#efc2c2; }
+
+  /* 배치: 단계 탭 | 단계 패널 | 명찰 | 선택한 요소 */
+  main { display:grid; grid-template-columns: 100px 330px minmax(0,1fr) 290px; min-height:calc(100vh - 58px); align-items:stretch; }
+  @media (max-width:1300px) { main { grid-template-columns: 100px 310px minmax(0,1fr); } main .props { grid-column:2 / -1; border-left:0; border-top:1px solid var(--line); } }
+  @media (max-width:900px) { main { grid-template-columns: 1fr; } .steps-nav { flex-direction:row !important; overflow-x:auto; position:static !important; height:auto !important; } main .props { grid-column:auto; } }
+  .steps-nav { display:flex; flex-direction:column; gap:4px; padding:12px 8px; background:#fff; border-right:1px solid var(--line); position:sticky; top:58px; height:calc(100vh - 58px); }
+  .steps-nav .grow { flex:1; }
+  .steps-nav button { flex-direction:column; gap:4px; border:0; border-radius:12px; padding:10px 2px; font-size:12.5px; white-space:nowrap; color:var(--muted); background:transparent; width:100%; }
+  .steps-nav button i { font-style:normal; width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; background:#eef1f4; color:var(--muted); }
+  .steps-nav button:hover { background:#f3f5f8; }
+  .steps-nav button.on { background:var(--accent-bg); color:var(--accent); font-weight:700; }
+  .steps-nav button.on i { background:var(--accent); color:#fff; }
+  .panel { background:#fff; border-right:1px solid var(--line); padding:18px 18px 40px; overflow:auto; position:sticky; top:58px; height:calc(100vh - 58px); }
+  .pane { display:none; }
+  .pane.on { display:block; animation:pane-in .18s ease-out; }
+  @keyframes pane-in { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:none; } }
+  .panel h2 { font-size:19px; margin:0 0 4px; }
+  .lead { color:var(--muted); font-size:13.5px; margin:0 0 16px; }
+  .sub-h { font-size:14.5px; margin:20px 0 10px; padding-top:16px; border-top:1px solid var(--line2); display:flex; align-items:baseline; gap:8px; }
+  .pane > .sub-h:first-of-type { border-top:0; padding-top:0; margin-top:0; }
+  .sub-h .muted { font-weight:400; }
+  details.adv { margin-top:16px; border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  details.adv summary { cursor:pointer; font-weight:600; color:var(--muted); font-size:13.5px; }
+  details.adv[open] summary { margin-bottom:10px; }
+  .props details.adv { margin:10px 0; }
+  .props { background:#fff; border-left:1px solid var(--line); padding:18px; position:sticky; top:58px; height:calc(100vh - 58px); overflow:auto; }
+  .props h2 { font-size:17px; margin:0 0 12px; }
+  .props-empty { color:var(--muted); text-align:center; padding:40px 10px; font-size:14px; line-height:1.7; }
+  .props-empty .big { font-size:34px; margin-bottom:8px; }
+  .field { display:block; margin-bottom:10px; }
+  .field > span { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; font-weight:600; }
+  .field input:not([type=checkbox]):not([type=range]):not([type=color]), .field select, .field textarea { width:100%; font:inherit; font-size:15px; padding:8px 10px; border:1px solid #cdd4dc; border-radius:8px; background:#fff; }
+  .field input:focus, .field select:focus, .field textarea:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:var(--accent); }
+  .field input[type=range] { width:100%; }
+  .field input[type=color] { width:100%; height:36px; border:1px solid #cdd4dc; border-radius:8px; padding:2px; background:#fff; }
+  .row { display:flex; gap:8px; }
+  .row > * { flex:1; min-width:0; }
+  .btns { display:flex; gap:6px; flex-wrap:wrap; }
+  .check { display:flex; gap:8px; align-items:center; margin:8px 0; }
+  .muted { color:var(--muted); font-size:13px; line-height:1.55; }
+  .warn { color:#8a4a05; background:#fff5e1; border-radius:8px; padding:9px 10px; font-size:13px; line-height:1.5; margin-top:8px; }
+  .layers { list-style:none; margin:0; padding:0; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .layers li { display:flex; align-items:center; gap:8px; padding:8px 10px; border-top:1px solid var(--line2); cursor:pointer; }
+  .layers li:first-child { border-top:0; }
+  .layers li:hover { background:#f6f8fb; }
+  .layers li.on { background:var(--accent-bg); box-shadow:inset 3px 0 0 var(--accent); }
+  .layers li .nm { flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .layers li .tp { font-size:12px; color:var(--faint); }
+  #add-btns button { font-size:13.5px; }
+  #qr { margin:10px 0; display:flex; gap:12px; align-items:flex-start; }
+  #qr-box svg { display:block; border:1px solid var(--line); border-radius:8px; }
+  #qr .btns { flex-direction:column; }
+  #qr-full { position:fixed; inset:0; background:#fff; z-index:50; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; cursor:pointer; }
+  #qr-full svg { width:min(80vmin, 640px); height:auto; }
+  #qr-full p { margin:0; font-size:18px; color:#333; text-align:center; }
+
+  /* 가운데 작업 영역 */
+  .work { display:flex; flex-direction:column; align-items:center; padding:18px 16px 30px; min-width:0; }
+  #stage-wrap { width:100%; display:flex; justify-content:center; padding:16px 0; }
+  #stage { position:relative; background:repeating-conic-gradient(#e3e7ec 0% 25%, #f5f7fa 0% 50%) 0 0/16px 16px; box-shadow:0 8px 30px rgba(0,0,0,.16); border-radius:4px; }
+  #badge-host { position:absolute; left:0; top:0; transform-origin:0 0; }
+  #badge-host.guides .bx-el { outline:1px dashed rgba(37,99,235,.55); }
+  #badge-host .bx-el { cursor:move; }
+  #overlay { position:absolute; inset:0; pointer-events:none; }
+  #selbox { position:absolute; border:2px solid var(--accent); pointer-events:auto; cursor:move; display:none; }
+  #selbox .h { position:absolute; width:12px; height:12px; background:#fff; border:2px solid var(--accent); border-radius:3px; }
+  #selbox .h.se { right:-7px; bottom:-7px; cursor:nwse-resize; }
+  #selbox .h.e { right:-7px; top:calc(50% - 6px); cursor:ew-resize; }
+  #selbox .h.s { bottom:-7px; left:calc(50% - 6px); cursor:ns-resize; }
+  #selbox .h.w { left:-7px; top:calc(50% - 6px); cursor:ew-resize; }
+  #selbox .h.n { top:-7px; left:calc(50% - 6px); cursor:ns-resize; }
+  #detbox { position:absolute; border:2px dashed #16a34a; display:none; pointer-events:none; z-index:1; }
+  #detbox span { position:absolute; right:-2px; bottom:-22px; font-size:11px; color:#fff; background:#16a34a; padding:2px 7px; border-radius:0 0 5px 5px; white-space:nowrap; }
+  .rec-box { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:10px; margin:0 0 10px; font-size:13px; line-height:1.5; }
+  .rec-box.none { background:#f6f7f9; border-color:var(--line); color:var(--muted); }
+  .rec-item { display:flex; align-items:center; gap:6px; padding:6px 0; border-top:1px solid #dcfce7; }
+  .rec-item:first-of-type { border-top:0; }
+  .rec-item .t { flex:1; }
+  .rec-item b { font-size:13.5px; }
+  .rec-item button { padding:3px 9px; font-size:12.5px; }
+  #lbbox { position:absolute; border:2px dashed #e11d48; display:none; pointer-events:none; z-index:2; }
+  #lbbox span { position:absolute; left:-2px; top:-24px; font-size:12px; color:#fff; background:#e11d48; padding:3px 8px; border-radius:5px 5px 0 0;
+                white-space:nowrap; pointer-events:auto; cursor:move; user-select:none; }
+  #lbbox span:hover { background:#be123c; }
+  #lbbox.editing { pointer-events:auto; cursor:move; background:rgba(225,29,72,.10); border-style:solid; }
+  #vguide { position:absolute; top:0; bottom:0; width:0; border-left:1px dashed #e11d48; display:none; }
+  .sample-bar { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; justify-content:center; background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 12px; }
+  .sample-bar .field { margin:0; width:140px; }
+  .sample-bar .field > span { font-size:12px; }
+  .work > .btns { justify-content:center; }
+  .work > .muted { max-width:560px; }
+  .empty-state { padding:60px 20px; text-align:center; color:var(--muted); font-size:15px; }
+
+  dialog { border:0; border-radius:16px; padding:0; width:min(480px, 94vw); box-shadow:0 18px 50px rgba(0,0,0,.25); color:var(--text); }
+  dialog::backdrop { background:rgba(15,20,27,.45); }
+  dialog .dlg { padding:20px 22px; }
+  dialog h3 { margin:0 0 12px; font-size:19px; }
+  .dlg-foot { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
+
+  /* 인쇄 */
+  #print-root { position:fixed; left:-10000px; top:0; }
+  @page { size:A4; margin:0; }
+  @media print {
+    html, body { background:#fff; }
+    body > *:not(#print-root) { display:none !important; }
+    #print-root { position:static; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">🎨</span>
+  <select id="event-sel"></select>
+  <button id="btn-new">＋ 새 행사</button>
+  <span class="grow"></span>
+  <a class="btnlike" href="station.html">🖨 출력 스테이션</a>
+  <span class="sep"></span>
+  <span id="save-state"></span>
+  <button id="btn-undo" title="Ctrl+Z">↶ 되돌리기</button>
+  <button class="primary" id="btn-save" title="Ctrl+S">💾 저장</button>
+</header>
+
+<div id="nosrv" class="empty-state" hidden>config.js 에 서버 URL과 키가 없습니다. 설치가이드를 참고해 서버 정보를 넣어 주세요.</div>
+
+<main id="main" hidden>
+  <!-- 왼쪽: 단계 탭 -->
+  <nav class="steps-nav" id="steps-nav">
+    <button data-step="info"><i>1</i><span>행사 정보</span></button>
+    <button data-step="design"><i>2</i><span>명찰 디자인</span></button>
+    <button data-step="label"><i>3</i><span>라벨지</span></button>
+    <button data-step="form"><i>4</i><span>등록 폼</span></button>
+    <button data-step="ops"><i>5</i><span>현장 운영</span></button>
+    <span class="grow"></span>
+    <button data-step="help" class="help"><i>?</i><span>도움말</span></button>
+  </nav>
+
+  <!-- 단계별 패널 -->
+  <aside class="panel" id="panel">
+    <div class="pane" data-pane="info">
+      <h2>행사 정보</h2>
+      <p class="lead">행사 이름과 등록 QR을 확인합니다.</p>
+      <label class="field"><span>행사명 (명찰의 '행사명' 요소와 등록 폼 제목에 쓰임)</span><input id="ev-name" maxlength="60"></label>
+      <label class="field"><span>상태</span>
+        <select id="ev-status"><option>진행중</option><option>종료</option></select></label>
+      <label class="field"><span>이 행사 등록 주소 (QR에 들어가는 주소)</span>
+        <div class="row"><input id="ev-url" readonly><button id="btn-copy" style="flex:0 0 auto">복사</button></div></label>
+      <div id="qr">
+        <div id="qr-box"></div>
+        <div class="btns">
+          <button id="btn-qr-big">🔍 크게 보기</button>
+          <button id="btn-qr-save">⬇ QR 이미지 저장</button>
+        </div>
+      </div>
+      <div class="muted">'종료'로 바꾸면 등록 폼이 닫히고 스테이션 목록에서 아래로 내려갑니다.</div>
+      <button id="btn-del-event" class="danger" style="margin-top:10px;width:100%">🗑 이 행사 삭제</button>
+    
+    </div>
+
+    <div class="pane" data-pane="design">
+      <h2>명찰 디자인</h2>
+      <p class="lead">배경을 고르고 글자를 넣습니다. 명찰의 글자를 누르면 오른쪽에서 고칠 수 있습니다.</p>
+      <h3 class="sub-h">배경</h3>
+      <div class="btns">
+        <button id="btn-bg">🖼 이미지 선택</button>
+        <button id="btn-bg-del" class="danger">이미지 제거</button>
+        <input type="file" id="bg-file" accept="image/*" hidden>
+      </div>
+      <div id="bg-info" class="muted" style="margin-top:6px"></div>
+      <label class="field" style="margin-top:8px"><span>이미지 맞춤</span>
+        <select data-bg="fit"><option value="cover">꽉 채우기 (잘릴 수 있음)</option><option value="contain">전체 보이기 (여백 생김)</option><option value="fill">늘려서 채우기</option></select></label>
+      <label class="field"><span>이미지 위치 — 가로 <b id="posx-v"></b>%</span><input type="range" data-bg="posX" min="0" max="100"></label>
+      <label class="field"><span>이미지 위치 — 세로 <b id="posy-v"></b>%</span><input type="range" data-bg="posY" min="0" max="100"></label>
+      <div class="row">
+        <label class="field"><span>배경색</span><input type="color" data-bg="color"></label>
+        <label class="field"><span>덧씌울 색</span><input type="color" data-bg="overlay"></label>
+      </div>
+      <label class="field"><span>덧씌우기 진하기 <b id="ov-v"></b>% (글자가 잘 보이게 배경을 어둡게/밝게)</span><input type="range" data-bg="overlayOpacity" min="0" max="0.9" step="0.05"></label>
+      <div id="ink-warn" class="warn" hidden>배경이 어둡습니다. 잉크젯에서는 잉크를 많이 쓰고 출력이 느려집니다. 행사 전에 한 장 뽑아 색과 속도를 확인하세요.</div>
+    
+      <h3 class="sub-h">글자·QR 넣기</h3>
+      <div class="btns" id="add-btns">
+        <button data-add="event">＋ 행사명</button>
+        <button data-add="org">＋ 소속</button>
+        <button data-add="name">＋ 성명</button>
+        <button data-add="title">＋ 직책</button>
+        <button data-add="text">＋ 고정 문구</button>
+        <button data-add="qr">＋ 개인 QR</button>
+        <select id="add-extra" style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px"><option value="">＋ 추가 항목…</option></select>
+      </div>
+      <div class="muted" style="margin-top:6px">개인 QR: 찍으면 참가자 카드(명함 교환)가 열리고, 스태프는 PIN으로 출석 체크합니다.</div>
+      
+      <h3 class="sub-h">요소 목록 <span class="muted">아래일수록 위에 그려짐</span></h3>
+      <ul class="layers" id="layers"></ul>
+    
+      <details class="adv"><summary>명찰 크기 바꾸기 (mm)</summary>
+      <div class="row">
+        <label class="field"><span>가로</span><input id="sz-w" type="number" min="30" max="200" step="0.5"></label>
+        <label class="field"><span>세로</span><input id="sz-h" type="number" min="30" max="280" step="0.5"></label>
+      </div>
+      <label class="check"><input type="checkbox" id="sz-scale" checked> 크기를 바꿀 때 요소도 같은 비율로 조정</label>
+      <button id="btn-fitlabel">출력 PC 라벨 칸 크기로 맞추기</button>
+      <label class="field" style="margin-top:8px"><span>폼텍 라벨지 크기로 명찰 만들기 (명찰 전체를 라벨에 바로 인쇄할 때)</span>
+        <select id="sz-formtec"><option value="">— 선택 —</option></select></label>
+    </details>
+    </div>
+
+    <div class="pane" data-pane="label">
+      <h2>라벨지</h2>
+      <p class="lead">배경은 미리 인쇄해 두고, 현장에서는 이름 부분만 스티커로 뽑을 때 씁니다.</p>
+      <label class="check"><input type="checkbox" id="lb-on"> 배경 명찰은 미리 인쇄하고,<br>이름 부분만 라벨(스티커)로 출력</label>
+      <div id="lb-hint" class="rec-box" hidden></div>
+      <div id="lb-body">
+        <label class="field"><span>라벨지 (폼텍)</span>
+          <select id="lb-stock"></select></label>
+        <div id="lb-info" class="muted" style="margin:-2px 0 8px"></div>
+        <div id="lb-rec"></div>
+        <div class="row">
+          <label class="field"><span>라벨 X (mm)</span><input id="lb-x" type="number" step="0.5"></label>
+          <label class="field"><span>라벨 Y (mm)</span><input id="lb-y" type="number" step="0.5"></label>
+        </div>
+        <div class="btns">
+          <button id="btn-lb-edit">✋ 라벨 위치 옮기기</button>
+          <button id="btn-lb-center">↔ 가로 가운데</button>
+        </div>
+        <label class="check"><input type="checkbox" id="lb-with" checked> 라벨 안의 글자(성명·소속·직책)도 같이 이동</label>
+        <div class="muted">점선 위의 빨간 이름표를 끌거나, [✋ 라벨 위치 옮기기]를 누른 뒤 점선 안 아무 곳이나 끌어서 옮기세요. 이 상태에서는 방향키로 0.5mm(Shift 5mm)씩 움직입니다.</div>
+        <div class="muted" style="margin-top:6px">빨간 점선이 라벨이 붙을 자리입니다. 배경의 흰 칸 안에 오도록 맞추세요.
+          점선 <b>안</b>의 요소만 라벨에 인쇄되고, 점선 <b>밖</b>의 행사명·고정 문구는 배경 명찰에 미리 인쇄됩니다.</div>
+        <div id="lb-warn" class="warn" hidden></div>
+      </div>
+    
+    </div>
+
+    <div class="pane" data-pane="form">
+      <h2>등록 폼</h2>
+      <p class="lead">참가자가 QR을 찍고 입력할 항목입니다.</p>
+      <div class="muted" style="margin-bottom:8px">QR 등록 폼에 받을 항목입니다. 성명은 항상 필수입니다.</div>
+      <div class="row">
+        <label class="field"><span>소속</span><select id="fm-org"><option value="required">필수</option><option value="optional">선택</option><option value="hidden">받지 않음</option></select></label>
+        <label class="field"><span>직책</span><select id="fm-title"><option value="optional">선택</option><option value="required">필수</option><option value="hidden">받지 않음</option></select></label>
+      </div>
+      <div id="fm-fields"></div>
+      <div class="btns">
+        <button id="fm-add">＋ 항목 추가</button>
+        <button id="fm-add-tel">＋ 연락처</button>
+        <button id="fm-add-email">＋ 이메일</button>
+        <button id="fm-add-kind">＋ 소속 구분</button>
+      </div>
+      <div class="muted" style="margin-top:6px">'명함 공개'를 켠 항목은 참가자가 동의한 경우에만 명찰 QR 카드에 보입니다. 추가 항목은 명찰에도 넣을 수 있습니다(요소 추가 → 추가 항목).</div>
+    
+    </div>
+
+    <div class="pane" data-pane="ops">
+      <h2>현장 운영</h2>
+      <p class="lead">명찰 개인 QR로 세션별 출석을 체크할 때 씁니다.</p>
+      <label class="field"><span>세션 (한 줄에 하나, 비우면 '전체' 한 가지)</span><textarea id="op-sessions" rows="3" style="width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px" placeholder="예:&#10;오전 기조강연&#10;오후 네트워킹"></textarea></label>
+      <label class="field"><span>스태프 PIN (4~8자리 숫자, 비우면 출석 체크 끔)</span><input id="op-pin" inputmode="numeric" maxlength="8" placeholder="예: 2468"></label>
+      <div class="muted">스태프가 휴대폰으로 명찰 QR을 찍고 PIN을 넣으면 그 세션 출석으로 기록됩니다. 결과는 대시보드·엑셀 내보내기에 나옵니다.</div>
+    
+    </div>
+
+    <div class="pane" data-pane="help">
+      <h2>도움말</h2>
+      <div class="muted">
+        · 행사마다 디자인이 따로 저장됩니다. 상단에서 행사를 바꿔 편집하세요.<br>
+        · 새 행사를 만들 때 기존 행사 디자인을 복사해 시작할 수 있습니다.<br>
+        · 저장하면 출력 스테이션이 1분 안에 새 디자인을 받아옵니다.<br>
+        · 배경 이미지는 명찰 비율(세로형)에 맞춰 잘립니다. '이미지 위치'로 보일 부분을 고르세요.
+      </div>
+    
+    </div>
+  </aside>
+
+  <!-- 가운데: 명찰 -->
+  <div class="work">
+    <div class="sample-bar">
+      <label class="field"><span>미리보기 소속</span><input id="s-org"></label>
+      <label class="field"><span>미리보기 성명</span><input id="s-name"></label>
+      <label class="field"><span>미리보기 직책</span><input id="s-title"></label>
+      <button id="btn-long">긴 글자 테스트</button>
+      <label class="check"><input type="checkbox" id="guides" checked> 요소 테두리 표시</label>
+    </div>
+    <div id="stage-wrap">
+      <div id="stage">
+        <div id="badge-host" class="guides"></div>
+        <div id="overlay">
+          <div id="detbox"><span>🔍 배경의 흰 칸</span></div>
+          <div id="lbbox"><span></span></div>
+          <div id="vguide"></div>
+          <div id="selbox"><div class="h n" data-h="n"></div><div class="h s" data-h="s"></div><div class="h w" data-h="w"></div><div class="h e" data-h="e"></div><div class="h se" data-h="se"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="btns">
+      <button id="btn-print">🖨 테스트 인쇄 (출력 PC 용지 설정 기준)</button>
+      <button id="btn-print-bg" hidden>🎨 배경 명찰 테스트 인쇄</button>
+    </div>
+    <div class="muted" style="margin-top:8px;text-align:center">요소를 끌어서 옮기고, 모서리 점으로 크기 조절 · 방향키 0.5mm 이동(Shift+방향키 5mm) · Delete 삭제<br>글자가 상자보다 길면 인쇄할 때 자동으로 작아집니다.</div>
+  </div>
+
+  <!-- 오른쪽: 선택한 요소 -->
+  <aside class="props" id="props">
+    <h2 id="props-title">선택한 요소</h2>
+      <div id="props-empty" class="props-empty"><div class="big">👆</div>가운데 명찰에서 글자나 QR을 누르면<br>여기서 크기·색·정렬을 고칠 수 있습니다.</div>
+      <div id="props-body" hidden>
+        <label class="field"><span>내용</span>
+          <select data-k="field"><option value="event">행사명</option><option value="org">소속</option><option value="name">성명</option><option value="title">직책</option><option value="text">고정 문구</option><option value="qr">개인 QR</option></select></label>
+        <label class="field" id="text-row"><span>고정 문구</span><input data-k="text" maxlength="80"></label>
+        <label class="field"><span>글꼴</span><select data-k="font" id="font-sel"></select></label>
+        <div class="row">
+          <label class="field"><span>글자 크기(mm)</span><input data-k="size" type="number" step="0.5" min="1"></label>
+          <label class="field"><span>굵기</span>
+            <select data-k="weight"><option value="400">보통</option><option value="500">약간 굵게</option><option value="700">굵게</option><option value="800">더 굵게</option><option value="900">가장 굵게</option></select></label>
+        </div>
+        <div class="row">
+          <label class="field"><span>글자색</span><input data-k="color" type="color"></label>
+          <label class="field"><span>자간(em)</span><input data-k="spacing" type="number" step="0.01"></label>
+        </div>
+        <div class="row">
+          <label class="field"><span>가로 정렬</span><select data-k="align"><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></select></label>
+          <label class="field"><span>세로 정렬</span><select data-k="valign"><option value="top">위</option><option value="middle">가운데</option><option value="bottom">아래</option></select></label>
+        </div>
+        <label class="check"><input type="checkbox" data-k="wrap"> 길면 줄바꿈 (끄면 한 줄로 줄여서 맞춤)</label>
+<details class="adv"><summary>위치·크기 숫자로 입력 (mm)</summary>
+        <div class="row">
+          <label class="field"><span>X</span><input data-k="x" type="number" step="0.5"></label>
+          <label class="field"><span>Y</span><input data-k="y" type="number" step="0.5"></label>
+          <label class="field"><span>너비</span><input data-k="w" type="number" step="0.5" min="2"></label>
+          <label class="field"><span>높이</span><input data-k="h" type="number" step="0.5" min="2"></label>
+        </div>
+        </details>
+        <div class="btns">
+          <button id="btn-center-x">↔ 가로 가운데</button>
+          <button id="btn-dup">복제</button>
+          <button id="btn-front">맨 앞으로</button>
+          <button id="btn-back">맨 뒤로</button>
+          <button id="btn-del" class="danger">삭제</button>
+        </div>
+      </div>
+    
+  </aside>
+</main>
+
+<!-- 새 행사 -->
+<dialog id="dlg-new">
+  <form class="dlg" method="dialog">
+    <h3>새 행사 만들기</h3>
+    <label class="field"><span>행사명</span><input id="new-name" maxlength="60" placeholder="예: 2026 ○○ 네트워킹 데이"></label>
+    <label class="field"><span>디자인 시작점</span><select id="new-from"></select></label>
+    <div class="dlg-foot">
+      <button value="cancel" formnovalidate>취소</button>
+      <button class="primary" value="ok">만들기</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- 행사 삭제 -->
+<dialog id="dlg-del">
+  <form class="dlg" method="dialog">
+    <h3>행사 삭제</h3>
+    <p style="line-height:1.6;margin:0 0 10px">
+      <b id="del-name"></b> 행사를 삭제합니다.<br>
+      행사 정보, 명찰 디자인, 배경 이미지가 <b style="color:var(--bad)">되돌릴 수 없게</b> 삭제되고, 이 행사의 등록 QR도 더 이상 열리지 않습니다.
+    </p>
+    <label class="check"><input type="checkbox" id="del-people"> <span>이 행사 등록자 <b id="del-count">…</b>명도 명단에서 삭제</span></label>
+    <div class="muted" style="margin:0 0 10px 24px">체크하지 않으면 등록자 명단은 구글 시트 '참가자' 탭에 남습니다 (결과보고용).</div>
+    <label class="field"><span>확인을 위해 행사명을 똑같이 입력하세요</span><input id="del-confirm" autocomplete="off"></label>
+    <div class="dlg-foot">
+      <button value="cancel" formnovalidate>취소</button>
+      <button class="primary" id="del-ok" value="ok" style="background:var(--bad);border-color:var(--bad)" disabled>삭제</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="print-root"></div>
+
+<script>
+BadgeRender.injectAssets();
+const $ = id => document.getElementById(id);
+const esc = BadgeRender.esc;
+const PX = 96 / 25.4; // 1mm = 3.78px
+
+/* ---------- 서버 ---------- */
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+const stationCfg = lsGet('badge.cfg', {});                 // 출력 스테이션 설정(같은 PC)을 함께 사용
+const SRV = {
+  apiUrl: stationCfg.apiUrl || (window.BADGE_SERVER || {}).apiUrl || '',
+  key: stationCfg.key || (window.BADGE_SERVER || {}).key || '',
+  formBase: (window.BADGE_SERVER || {}).formBase || '',
+};
+/** QR에 넣는 등록 주소 — GitHub Pages(formBase)가 있으면 그쪽, 없으면 구글 주소 */
+const formUrlFor = id => (SRV.formBase ? SRV.formBase + '?e=' : SRV.apiUrl + '?e=') + encodeURIComponent(id);
+const cardUrlFor = id => (SRV.formBase ? SRV.formBase + 'card.html?p=' : SRV.apiUrl + '?p=') + encodeURIComponent(id);
+const LAYOUT = Object.assign({ cols: 2, rows: 2, labelW: 100, labelH: 120, marginL: 5, marginT: 28.5, gapX: 0, gapY: 0, offX: 0, offY: 0 }, stationCfg);
+// 라벨 부착 방식 용지 (출력 스테이션의 '라벨 부착 방식용' 설정과 같은 값)
+// 라벨 부착 방식 용지: 선택한 폼텍 라벨지 공식 규격 + 출력 PC에서 맞춘 보정값
+const labelLayout = stock => BadgeRender.stockLayout(stock, (stationCfg.stockLayouts || {})[stock]);
+
+/** 서버 요청. 읽기(GET)는 네트워크가 잠깐 끊겨 실패하면 두 번까지 다시 시도 */
+async function fetchJSON(url, opts) {
+  const isGet = !opts || !opts.method || opts.method === 'GET';
+  for (let attempt = 0; ; attempt++) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 60000);
+    try {
+      const r = await fetch(url, Object.assign({ signal: ctrl.signal }, opts));
+      let j;
+      try { j = await r.json(); } catch (e) { throw new TypeError('bad response'); } // 구글 오류 페이지(HTML) 등
+      if (!j.ok) throw new Error(j.error || '서버 오류');
+      return j;
+    } catch (e) {
+      const net = e instanceof TypeError; // Failed to fetch · 응답이 JSON이 아님
+      if (net && isGet && attempt < 2) { await new Promise(res => setTimeout(res, 1500 * (attempt + 1))); continue; }
+      if (e.name === 'AbortError') throw new Error('서버 응답 시간 초과 — 잠시 후 다시 시도하세요.');
+      if (net) throw new Error('서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 시도하세요.');
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+/** 서버 인증: 로그인 통행증(token)이 있으면 그것을, 없으면 이 PC의 스테이션 키를 보냄 */
+const authParams = () => { const t = window.BadgeGate ? BadgeGate.token() : ''; return t ? { token: t } : { key: SRV.key || '' }; };
+/** 통행증이 만료되면 로그인 창을 다시 띄우고, 로그인한 뒤 같은 요청을 한 번 더 보냄 */
+async function withAuth(run) {
+  try { return await run(); } catch (e) {
+    if (window.BadgeGate && BadgeGate.isAuthError(e)) { await BadgeGate.relogin(); return run(); }
+    throw e;
+  }
+}
+const api = {
+  get(action, params) {
+    return withAuth(() => {
+      const q = Object.entries(Object.assign(authParams(), { action }, params || {})).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+      return fetchJSON(SRV.apiUrl + '?' + q, { cache: 'no-store' });
+    });
+  },
+  post(body) {
+    return withAuth(() => fetchJSON(SRV.apiUrl, { method: 'POST', body: JSON.stringify(Object.assign(authParams(), body)) }));
+  },
+};
+
+/* ---------- 상태 ---------- */
+let events = [];
+let ev = null;          // 선택된 행사 {id, name, status}
+let design = null;      // 편집 중인 디자인
+let bg = '';            // 배경 이미지 dataURL
+let dirty = false, bgDirty = false, infoDirty = false;
+let sel = null;         // 선택 요소 id
+let hist = [];
+let longSample = false;
+
+const SAMPLE = { org: '조슈아파트너스', name: '홍길동', title: '대표' };
+const LONG = { org: '서울창업허브 입주기업 협의회 운영위원회', name: '남궁미르나래', title: '대표이사 겸 최고기술책임자' };
+const sample = () => {
+  const extra = {};
+  ((design && design.form.fields) || []).forEach(f => { extra[f.label] = f.type === 'select' ? (f.options[0] || f.label) : (f.type === 'tel' ? '010-1234-5678' : f.type === 'email' ? 'hong@example.com' : f.label); });
+  return { org: $('s-org').value, name: $('s-name').value, title: $('s-title').value, extra, qrUrl: cardUrlFor('preview') };
+};
+/** 요소 이름 (추가 항목 f:id → 항목 이름) */
+function fieldName(field) {
+  if (String(field).startsWith('f:')) {
+    const f = ((design && design.form.fields) || []).find(x => 'f:' + x.id === field);
+    return f ? f.label : '(삭제된 항목)';
+  }
+  return BadgeRender.FIELDS[field] || field;
+}
+const selEl = () => design && design.elements.find(e => e.id === sel);
+const r05 = v => Math.round(v * 2) / 2;
+
+function setStatus(text, isDirty) {
+  const s = $('save-state');
+  s.textContent = text;
+  s.className = isDirty ? 'dirty' : '';
+}
+function markDirty() { dirty = true; setStatus('● 저장 안 된 변경사항', true); }
+function snapshot() { hist.push(JSON.stringify(design)); if (hist.length > 80) hist.shift(); }
+function change(fn) { snapshot(); fn(); markDirty(); renderAll(); }
+
+/* ---------- 행사 불러오기 ---------- */
+async function loadEvents() {
+  events = (await api.get('events')).items;
+  const on = events.filter(e => e.status !== '종료').reverse(), off = events.filter(e => e.status === '종료').reverse();
+  $('event-sel').innerHTML = on.map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('') +
+    (off.length ? '<optgroup label="종료된 행사">' + off.map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('') + '</optgroup>' : '');
+  if (ev) $('event-sel').value = ev.id;
+}
+
+async function selectEvent(id) {
+  if (dirty && !confirm('저장하지 않은 변경사항이 있습니다. 버리고 다른 행사로 이동할까요?')) { $('event-sel').value = ev.id; return; }
+  setStatus('불러오는 중…');
+  const j = await api.get('event', { id });
+  ev = j.event;
+  design = BadgeRender.normalize(j.design);
+  bg = j.bg || '';
+  dirty = bgDirty = infoDirty = false;
+  hist = []; sel = null;
+  lsSet('designer.last', id);
+  $('event-sel').value = id;
+  $('ev-name').value = ev.name;
+  $('ev-status').value = ev.status;
+  $('ev-url').value = formUrlFor(ev.id);
+  drawQR();
+  checkInk();
+  setStatus(j.design ? '저장됨' : '기본 디자인 (아직 저장 안 함)', !j.design);
+  if (!j.design) dirty = true;
+  detect = null;
+  renderAll();
+  detectRegion();
+}
+
+/* ---------- 그리기 ---------- */
+let zoom = 1;
+function renderAll() {
+  if (!design) return;
+  renderFormPanel(); // 추가 항목 선택지를 먼저 채워야 속성 패널에서 고를 수 있음
+  renderStage();
+  renderLayers();
+  renderProps();
+  renderBgPanel();
+  renderLabelPanel();
+  $('btn-undo').disabled = !hist.length;
+}
+
+function renderLabelPanel() {
+  const lb = design.label, on = !!lb.enabled;
+  $('lb-on').checked = on;
+  $('lb-body').hidden = !on;
+  $('btn-print-bg').hidden = !on;
+  if (document.activeElement !== $('lb-x')) $('lb-x').value = lb.x;
+  if (document.activeElement !== $('lb-y')) $('lb-y').value = lb.y;
+  $('lb-stock').value = lb.stock;
+  $('lb-info').textContent = BadgeRender.LABEL_STOCKS[lb.stock] ? stockInfo(lb.stock) : '';
+  if (on && (lb.w > design.w || lb.h > design.h)) $('lb-info').textContent += ' ⚠ 라벨이 명찰보다 큽니다';
+  const box = $('lbbox'), k = PX * zoom;
+  box.style.display = on ? 'block' : 'none';
+  Object.assign(box.style, { left: lb.x * k + 'px', top: lb.y * k + 'px', width: lb.w * k + 'px', height: lb.h * k + 'px' });
+  box.firstChild.textContent = `✥ 라벨 ${lb.w}×${lb.h}mm · 끌어서 이동`;
+  if (!on) lbEdit = false;
+  box.classList.toggle('editing', lbEdit);
+  $('btn-lb-edit').textContent = lbEdit ? '✔ 위치 옮기기 끝내기' : '✋ 라벨 위치 옮기기';
+  $('btn-lb-edit').className = lbEdit ? 'primary' : '';
+  const out = on ? BadgeRender.personFieldsOutside(design) : [];
+  $('lb-warn').hidden = !out.length;
+  $('lb-warn').textContent = out.length
+    ? `${out.map(e => fieldName(e.field)).join(', ')} 요소가 라벨 밖에 있어 인쇄되지 않습니다. 빨간 점선 안으로 옮기세요.` : '';
+  renderDetect();
+}
+
+function renderStage() {
+  const wrapW = $('stage-wrap').clientWidth - 40;
+  const availH = Math.max(360, window.innerHeight - 240);
+  zoom = Math.min(wrapW / (design.w * PX), availH / (design.h * PX), 3.2);
+  const host = $('badge-host');
+  host.style.transform = `scale(${zoom})`;
+  host.innerHTML = BadgeRender.badgeHTML(design, bg, sample(), $('ev-name').value);
+  BadgeRender.fitAll(host);
+  $('stage').style.width = design.w * PX * zoom + 'px';
+  $('stage').style.height = design.h * PX * zoom + 'px';
+  renderSel();
+}
+
+function renderSel() {
+  const box = $('selbox'), e = selEl();
+  if (!e) { box.style.display = 'none'; return; }
+  const k = PX * zoom;
+  Object.assign(box.style, { display: 'block', left: e.x * k + 'px', top: e.y * k + 'px', width: e.w * k + 'px', height: e.h * k + 'px' });
+}
+
+function renderLayers() {
+  $('layers').innerHTML = design.elements.map(e => `<li data-id="${esc(e.id)}" class="${e.id === sel ? 'on' : ''}">
+      <span class="tp">${esc(fieldName(e.field))}</span>
+      <span class="nm">${esc(e.field === 'text' ? (e.text || '(빈 문구)') : '')}</span>
+    </li>`).join('') || '<li class="muted">요소가 없습니다</li>';
+}
+
+function renderProps() {
+  const e = selEl();
+  $('props-empty').hidden = !!e;
+  $('props-body').hidden = !e;
+  if (!e) { $('props-title').textContent = '선택한 요소'; return; }
+  $('props-title').textContent = '선택한 요소 · ' + fieldName(e.field);
+  document.querySelectorAll('#props [data-k]').forEach(inp => {
+    if (document.activeElement === inp) return;
+    const v = e[inp.dataset.k];
+    if (inp.type === 'checkbox') inp.checked = !!v; else inp.value = v;
+  });
+  $('text-row').hidden = e.field !== 'text';
+}
+
+function renderBgPanel() {
+  const b = design.bg;
+  document.querySelectorAll('[data-bg]').forEach(inp => { if (document.activeElement !== inp) inp.value = b[inp.dataset.bg]; });
+  $('posx-v').textContent = b.posX;
+  $('posy-v').textContent = b.posY;
+  $('ov-v').textContent = Math.round(b.overlayOpacity * 100);
+  $('bg-info').textContent = bg ? `이미지 있음 (${Math.round(bg.length * 0.75 / 1024)}KB)` : '이미지 없음 — 배경색만 사용';
+  if (document.activeElement !== $('sz-w')) $('sz-w').value = design.w;
+  if (document.activeElement !== $('sz-h')) $('sz-h').value = design.h;
+}
+
+/* ---------- 캔버스 조작 (선택·이동·크기조절) ---------- */
+let drag = null;
+$('stage').addEventListener('pointerdown', e => {
+  // 빨간 점선(라벨 자리): 위쪽 이름표를 잡거나, '라벨 위치 옮기기' 모드에서는 점선 안 어디든 잡고 이동
+  if (e.target.closest('#lbbox') && design.label.enabled) {
+    e.preventDefault();
+    const lb = design.label;
+    const inside = $('lb-with').checked
+      ? design.elements.filter(x => { const cx = x.x + x.w / 2, cy = x.y + x.h / 2; return cx >= lb.x && cx <= lb.x + lb.w && cy >= lb.y && cy <= lb.y + lb.h; })
+      : [];
+    drag = { mode: 'label', sx: e.clientX, sy: e.clientY, orig: { x: lb.x, y: lb.y }, els: inside.map(x => ({ el: x, x: x.x, y: x.y })), moved: false };
+    $('stage').setPointerCapture(e.pointerId);
+    return;
+  }
+  const handle = e.target.closest('[data-h]');
+  const hit = e.target.closest('.bx-el');
+  if (!handle && e.target.closest('#selbox') == null && !hit) { sel = null; renderAll(); return; }
+  if (hit && !handle && !e.target.closest('#selbox')) sel = hit.dataset.id;
+  const el = selEl();
+  if (!el) return;
+  e.preventDefault();
+  drag = { mode: handle ? handle.dataset.h : 'move', sx: e.clientX, sy: e.clientY, orig: Object.assign({}, el), snapped: false, moved: false };
+  $('stage').setPointerCapture(e.pointerId);
+  renderAll();
+});
+
+$('stage').addEventListener('pointermove', e => {
+  if (drag && drag.mode === 'label') return moveLabelDrag(e);
+  if (!drag) return;
+  const el = selEl(), k = PX * zoom, o = drag.orig;
+  const dx = (e.clientX - drag.sx) / k, dy = (e.clientY - drag.sy) / k;
+  if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 0.3) return;
+  if (!drag.moved) { snapshot(); drag.moved = true; }
+  let showGuide = false;
+  if (drag.mode === 'move') {
+    el.x = r05(o.x + dx); el.y = r05(o.y + dy);
+    const cx = el.x + el.w / 2;
+    if (Math.abs(cx - design.w / 2) < 1.2) { el.x = r05(design.w / 2 - el.w / 2); showGuide = true; } // 가로 가운데 자석
+  } else {
+    if (drag.mode.includes('e')) el.w = Math.max(2, r05(o.w + dx));
+    if (drag.mode.includes('s')) el.h = Math.max(2, r05(o.h + dy));
+    if (drag.mode === 'w') { const nw = Math.max(2, r05(o.w - dx)); el.x = o.x + o.w - nw; el.w = nw; }
+    if (drag.mode === 'n') { const nh = Math.max(2, r05(o.h - dy)); el.y = o.y + o.h - nh; el.h = nh; }
+  }
+  const g = $('vguide');
+  g.style.display = showGuide ? 'block' : 'none';
+  g.style.left = design.w / 2 * k + 'px';
+  const div = $('badge-host').querySelector(`.bx-el[data-id="${CSS.escape(el.id)}"]`);
+  if (div) Object.assign(div.style, { left: el.x + 'mm', top: el.y + 'mm', width: el.w + 'mm', height: el.h + 'mm' });
+  renderSel();
+});
+
+const r01 = v => Math.round(v * 10) / 10;
+
+/** 라벨 자리 끌기: 0.1mm 단위, 명찰 밖으로 못 나가게, 가로 가운데 자석 */
+function moveLabelDrag(e) {
+  const lb = design.label, k = PX * zoom, o = drag.orig;
+  const dx = (e.clientX - drag.sx) / k, dy = (e.clientY - drag.sy) / k;
+  if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 0.3) return;
+  if (!drag.moved) { snapshot(); drag.moved = true; }
+  // 손떨림으로 생긴 작은 가로 이동은 무시 (세로로만 옮길 때 X가 바뀌지 않게)
+  let x = Math.abs(dx) < 0.5 ? o.x : r01(Math.min(Math.max(0, o.x + dx), design.w - lb.w));
+  const y = r01(Math.min(Math.max(0, o.y + dy), design.h - lb.h));
+  const center = Math.round((design.w - lb.w) / 2 * 100) / 100;
+  const snap = Math.abs(dx) >= 0.5 && Math.abs(x - center) < 0.4; // 가로로 옮길 때만 가운데 자석
+  if (snap) x = center;
+  lb.x = x; lb.y = y;
+  drag.els.forEach(m => { m.el.x = r01(m.x + (x - o.x)); m.el.y = r01(m.y + (y - o.y)); });
+  const g = $('vguide');
+  g.style.display = snap ? 'block' : 'none';
+  g.style.left = design.w / 2 * k + 'px';
+  Object.assign($('lbbox').style, { left: x * k + 'px', top: y * k + 'px' });
+  drag.els.forEach(m => {
+    const div = $('badge-host').querySelector(`.bx-el[data-id="${CSS.escape(m.el.id)}"]`);
+    if (div) Object.assign(div.style, { left: m.el.x + 'mm', top: m.el.y + 'mm' });
+  });
+  if (document.activeElement !== $('lb-x')) $('lb-x').value = x;
+  if (document.activeElement !== $('lb-y')) $('lb-y').value = y;
+  renderSel();
+}
+
+$('stage').addEventListener('pointerup', () => {
+  if (!drag) return;
+  const moved = drag.moved;
+  drag = null;
+  $('vguide').style.display = 'none';
+  if (moved) markDirty();
+  renderAll();
+});
+
+$('layers').addEventListener('click', e => {
+  const li = e.target.closest('li[data-id]');
+  if (!li) return;
+  sel = li.dataset.id;
+  renderAll();
+});
+
+/* ---------- 속성 패널 ---------- */
+document.querySelectorAll('#props [data-k]').forEach(inp => {
+  inp.addEventListener('focus', () => { if (selEl()) snapshot(); });
+  const apply = () => {
+    const el = selEl();
+    if (!el) return;
+    const k = inp.dataset.k;
+    let v = inp.type === 'checkbox' ? inp.checked : inp.value;
+    if (['x', 'y', 'w', 'h', 'size', 'spacing'].includes(k)) v = Number(v) || 0;
+    if (k === 'weight') v = Number(v);
+    if (inp.type === 'checkbox' || inp.tagName === 'SELECT') snapshot();
+    el[k] = v;
+    markDirty();
+    renderAll();
+  };
+  inp.addEventListener(inp.type === 'checkbox' || inp.tagName === 'SELECT' ? 'change' : 'input', apply);
+});
+
+$('font-sel').innerHTML = BadgeRender.FONTS.map(f => `<option value="${f.id}">${esc(f.label)}</option>`).join('');
+
+$('btn-center-x').onclick = () => { const el = selEl(); if (el) change(() => { el.x = r05((design.w - el.w) / 2); }); };
+$('btn-dup').onclick = () => {
+  const el = selEl();
+  if (!el) return;
+  change(() => {
+    const c = Object.assign({}, el, { id: 'el' + Date.now().toString(36), y: el.y + 3 });
+    design.elements.push(c);
+    sel = c.id;
+  });
+};
+$('btn-del').onclick = () => {
+  const el = selEl();
+  if (!el) return;
+  change(() => { design.elements = design.elements.filter(x => x !== el); sel = null; });
+};
+$('btn-front').onclick = () => { const el = selEl(); if (el) change(() => { design.elements = design.elements.filter(x => x !== el).concat(el); }); };
+$('btn-back').onclick = () => { const el = selEl(); if (el) change(() => { design.elements = [el].concat(design.elements.filter(x => x !== el)); }); };
+
+$('add-btns').addEventListener('click', e => {
+  const f = e.target.dataset.add;
+  if (!f || !design) return;
+  addElement(f);
+});
+/** 요소 추가 (개인 QR은 정사각형 22mm, 추가 항목 f:id 는 보통 글자) */
+function addElement(f) {
+  const presets = { event: [4.5, 700, true], org: [6.5, 400, true], name: [16, 800, false], title: [6.5, 400, false], text: [5, 400, true], qr: [5, 400, false] };
+  const [size, weight, wrap] = presets[f] || [6, 600, false];
+  const isQR = f === 'qr';
+  const w = isQR ? 22 : design.w - 12, h = isQR ? 22 : (f === 'name' ? 22 : 12);
+  const x = isQR ? r05(design.w - w - 6) : 6, y = isQR ? r05(design.h - h - 6) : r05(design.h / 2 - h / 2);
+  change(() => {
+    const el = BadgeRender.newElement(f, x, y, w, h, size, { weight, wrap, text: f === 'text' ? '문구를 입력하세요' : '' });
+    design.elements.push(el);
+    sel = el.id;
+  });
+}
+$('add-extra').addEventListener('change', e => { const v = e.target.value; e.target.value = ''; if (v && design) addElement(v); });
+
+/* ---------- 등록 폼 항목 · 현장 운영 ---------- */
+const TYPE_NAMES = { text: '텍스트', tel: '전화번호', email: '이메일', select: '선택형' };
+function renderFormPanel() {
+  const f = design.form;
+  if (document.activeElement !== $('fm-org')) $('fm-org').value = f.org;
+  if (document.activeElement !== $('fm-title')) $('fm-title').value = f.title;
+  // 추가 항목 편집 줄 (입력 중에는 다시 그리지 않음)
+  if (!$('fm-fields').contains(document.activeElement)) {
+    $('fm-fields').innerHTML = f.fields.map((x, i) => `<div class="fm-row" data-i="${i}" style="border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px">
+      <div class="row">
+        <input data-fk="label" value="${esc(x.label)}" maxlength="30" placeholder="항목 이름" style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px">
+        <select data-fk="type" style="font:inherit;padding:6px;border:1px solid var(--line);border-radius:7px;flex:0 0 92px">${Object.entries(TYPE_NAMES).map(([k, v]) => `<option value="${k}"${x.type === k ? ' selected' : ''}>${v}</option>`).join('')}</select>
+        <button data-fdel title="항목 삭제" style="flex:0 0 auto">✕</button>
+      </div>
+      ${x.type === 'select' ? `<input data-fk="options" value="${esc((x.options || []).join(', '))}" placeholder="선택지 (쉼표로 구분) 예: 참가자, 멘토, 스태프" style="width:100%;margin-top:6px;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px">` : ''}
+      <div style="display:flex;gap:14px;margin-top:6px">
+        <label class="check" style="margin:0"><input type="checkbox" data-fk="required"${x.required ? ' checked' : ''}> 필수</label>
+        ${x.type === 'tel' || x.type === 'email' ? `<label class="check" style="margin:0"><input type="checkbox" data-fk="share"${x.share ? ' checked' : ''}> 명함 공개 가능</label>` : ''}
+      </div>
+    </div>`).join('');
+  }
+  if (document.activeElement !== $('op-sessions')) $('op-sessions').value = design.ops.sessions.join('\n');
+  if (document.activeElement !== $('op-pin')) $('op-pin').value = design.ops.pin;
+  // 추가 항목을 명찰 요소로 넣는 메뉴 / 속성 패널 '내용' 선택지
+  $('add-extra').innerHTML = '<option value="">＋ 추가 항목…</option>' + f.fields.map(x => `<option value="f:${esc(x.id)}">${esc(x.label)}</option>`).join('');
+  const fs = document.querySelector('#props [data-k="field"]');
+  fs.querySelectorAll('option.extra').forEach(o => o.remove());
+  f.fields.forEach(x => fs.insertAdjacentHTML('beforeend', `<option class="extra" value="f:${esc(x.id)}">추가 항목: ${esc(x.label)}</option>`));
+}
+
+function addFormField(o) {
+  change(() => { design.form.fields.push(Object.assign({ id: 'f' + Date.now().toString(36), label: '항목', type: 'text', required: false, share: false, options: [] }, o)); });
+}
+$('fm-add').onclick = () => addFormField({ label: '항목' });
+$('fm-add-tel').onclick = () => addFormField({ label: '연락처', type: 'tel', share: true });
+$('fm-add-email').onclick = () => addFormField({ label: '이메일', type: 'email', share: true });
+$('fm-add-kind').onclick = () => addFormField({ label: '소속 구분', type: 'select', required: true, options: ['참가자', '멘토', '스태프'] });
+$('fm-org').addEventListener('change', e => change(() => { design.form.org = e.target.value; }));
+$('fm-title').addEventListener('change', e => change(() => { design.form.title = e.target.value; }));
+
+$('fm-fields').addEventListener('focusin', e => { if (e.target.matches('input[type=text], input:not([type])')) snapshot(); });
+$('fm-fields').addEventListener('input', e => {
+  const row = e.target.closest('.fm-row'), k = e.target.dataset.fk;
+  if (!row || !k || e.target.type === 'checkbox' || e.target.tagName === 'SELECT') return;
+  const x = design.form.fields[Number(row.dataset.i)];
+  if (k === 'label') x.label = e.target.value.trim() || '항목';
+  if (k === 'options') x.options = e.target.value.split(/[,，]/).map(v => v.trim()).filter(Boolean);
+  markDirty();
+  renderStage(); renderLayers();
+});
+$('fm-fields').addEventListener('change', e => {
+  const row = e.target.closest('.fm-row'), k = e.target.dataset.fk;
+  if (!row || !k || !(e.target.type === 'checkbox' || e.target.tagName === 'SELECT')) return;
+  const x = design.form.fields[Number(row.dataset.i)];
+  change(() => {
+    if (e.target.type === 'checkbox') x[k] = e.target.checked;
+    else { x.type = e.target.value; if (x.type !== 'tel' && x.type !== 'email') x.share = false; }
+  });
+});
+$('fm-fields').addEventListener('click', e => {
+  if (!e.target.matches('[data-fdel]')) return;
+  const i = Number(e.target.closest('.fm-row').dataset.i), x = design.form.fields[i];
+  if (!confirm(`'${x.label}' 항목을 등록 폼에서 뺄까요? (이미 받은 값은 명단에 남습니다)`)) return;
+  change(() => { design.form.fields.splice(i, 1); });
+});
+
+$('op-sessions').addEventListener('focus', () => snapshot());
+$('op-sessions').addEventListener('change', e => { design.ops.sessions = e.target.value.split('\n').map(v => v.trim()).filter(Boolean); markDirty(); renderAll(); });
+$('op-pin').addEventListener('focus', () => snapshot());
+$('op-pin').addEventListener('change', e => {
+  const v = e.target.value.replace(/\D/g, '').slice(0, 8);
+  if (v && v.length < 4) { alert('PIN은 4~8자리 숫자로 정해 주세요.'); e.target.value = design.ops.pin; return; }
+  design.ops.pin = v; markDirty(); renderAll();
+});
+
+/* ---------- 크기 ---------- */
+function resizeBadge(w, h) {
+  if (!(w >= 30 && h >= 30)) return;
+  change(() => {
+    if ($('sz-scale').checked) {
+      const sx = w / design.w, sy = h / design.h, sf = Math.min(sx, sy);
+      design.elements.forEach(e => { e.x = r05(e.x * sx); e.y = r05(e.y * sy); e.w = r05(e.w * sx); e.h = r05(e.h * sy); e.size = Math.round(e.size * sf * 10) / 10; });
+    }
+    design.w = w; design.h = h;
+  });
+  scheduleDetect();
+}
+$('sz-w').addEventListener('change', () => resizeBadge(Number($('sz-w').value), design.h));
+$('sz-h').addEventListener('change', () => resizeBadge(design.w, Number($('sz-h').value)));
+$('btn-fitlabel').onclick = () => {
+  if (!confirm(`출력 PC의 라벨 칸(${LAYOUT.labelW}×${LAYOUT.labelH}mm)으로 명찰 크기를 바꿀까요?`)) return;
+  resizeBadge(LAYOUT.labelW, LAYOUT.labelH);
+};
+
+/* ---------- 라벨 부착 방식 ---------- */
+/* 폼텍 라벨지 목록: 명찰에 쓰기 좋은 크기를 위에 */
+const RECOMMENDED = ['nl2308', 'ls3510', 'ls3114', 'ls3615', 'ls3116'];
+/** recs가 있으면 '이 배경에 맞는 라벨지'를 맨 위 그룹으로 (★, 꽉 참 비율·여유 표시) */
+function stockOptions(recs) {
+  const opt = id => `<option value="${id}">${esc(BadgeRender.LABEL_STOCKS[id].label)}</option>`;
+  const fit = recs || [], fitIds = fit.map(r => r.id);
+  const top = fit.length
+    ? `<optgroup label="🔍 이 배경의 흰 칸에 맞는 라벨지 (꽉 차는 순)">${fit.map((r, i) =>
+        `<option value="${r.id}">${i === 0 ? '★ ' : ''}${esc(r.s.code)} · ${r.s.w}×${r.s.h}mm · ${Math.round(r.cover * 100)}% 채움 · 여유 좌우 ${r.gx.toFixed(1)}/상하 ${r.gy.toFixed(1)}mm</option>`).join('')}</optgroup>`
+    : '';
+  const rec = RECOMMENDED.filter(id => !fitIds.includes(id)), rest = Object.keys(BadgeRender.LABEL_STOCKS).filter(id => !RECOMMENDED.includes(id) && !fitIds.includes(id));
+  return top + (rec.length ? `<optgroup label="명찰용 추천">${rec.map(opt).join('')}</optgroup>` : '') + `<optgroup label="기타 폼텍 라벨">${rest.map(opt).join('')}</optgroup>`;
+}
+$('lb-stock').innerHTML = stockOptions();
+$('sz-formtec').innerHTML += stockOptions();
+
+/* ---------- 배경에서 라벨 붙일 흰 칸 자동 찾기 ---------- */
+const MIN_GAP = 1;            // 라벨 둘레 최소 여유 (mm) — 붙일 때 손 오차 감안
+let detect = null;            // 찾은 흰 칸 {x, y, w, h} (mm, 명찰 기준) / 못 찾으면 null
+let detectSeq = 0, detectTimer = null, imgCache = { src: '', img: null };
+
+function loadImg(src) {
+  if (imgCache.src === src) return Promise.resolve(imgCache.img);
+  return new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => { imgCache = { src, img: i }; res(i); };
+    i.onerror = rej;
+    i.src = src;
+  });
+}
+
+/** 배경을 명찰에 보이는 그대로(맞춤·위치·덧씌우기) 0.5mm 격자로 그려서, 가장 큰 밝은 직사각형을 찾는다 */
+async function detectRegion() {
+  const seq = ++detectSeq;
+  if (!design || !bg) { detect = null; renderLabelPanel(); return; }
+  let img;
+  try { img = await loadImg(bg); } catch (e) { detect = null; renderLabelPanel(); return; }
+  if (seq !== detectSeq || !design) return;
+  const G = 2, W = Math.round(design.w * G), H = Math.round(design.h * G), b = design.bg;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.fillStyle = b.color || '#ffffff'; g.fillRect(0, 0, W, H);
+  let dw = W, dh = H, dx = 0, dy = 0;
+  if (b.fit !== 'fill') {
+    const s = b.fit === 'contain' ? Math.min(W / img.naturalWidth, H / img.naturalHeight) : Math.max(W / img.naturalWidth, H / img.naturalHeight);
+    dw = img.naturalWidth * s; dh = img.naturalHeight * s;
+    dx = (W - dw) * (b.posX == null ? 50 : b.posX) / 100; dy = (H - dh) * (b.posY == null ? 50 : b.posY) / 100;
+  }
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(img, dx, dy, dw, dh);
+  if (b.overlayOpacity > 0) { g.globalAlpha = b.overlayOpacity; g.fillStyle = b.overlay; g.fillRect(0, 0, W, H); g.globalAlpha = 1; }
+  const d = g.getImageData(0, 0, W, H).data;
+  // 1) 밝은 칸(라벨 붙일 흰 바탕) 판정: 밝기 75% 이상
+  const light = new Uint8Array(W * H);
+  for (let p = 0; p < W * H; p++) {
+    const i = p * 4;
+    light[p] = (0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]) / 255 >= 0.75 ? 1 : 0;
+  }
+  // 2) 가장 큰 '덩어리'(서로 이어진 밝은 영역) = 라벨 붙일 흰 칸. 둥근 모서리여도 실제 바깥 크기를 잰다
+  const seen = new Uint8Array(W * H), stack = new Int32Array(W * H);
+  let bestComp = null;
+  for (let p0 = 0; p0 < W * H; p0++) {
+    if (!light[p0] || seen[p0]) continue;
+    let n = 0, top = 0, x0 = W, y0 = H, x1 = 0, y1 = 0;
+    stack[top++] = p0; seen[p0] = 1;
+    while (top) {
+      const p = stack[--top], x = p % W, y = (p - x) / W;
+      n++; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      if (x > 0 && light[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; stack[top++] = p - 1; }
+      if (x < W - 1 && light[p + 1] && !seen[p + 1]) { seen[p + 1] = 1; stack[top++] = p + 1; }
+      if (y > 0 && light[p - W] && !seen[p - W]) { seen[p - W] = 1; stack[top++] = p - W; }
+      if (y < H - 1 && light[p + W] && !seen[p + W]) { seen[p + W] = 1; stack[top++] = p + W; }
+    }
+    if (!bestComp || n > bestComp.n) bestComp = { n, x0, y0, x1, y1, id: p0 };
+  }
+  if (!bestComp) { detect = null; renderLabelPanel(); return; }
+  // 3) 그 덩어리만 남긴 마스크의 누적합 (라벨이 통째로 흰 칸 위에 놓이는지 빠르게 검사)
+  const comp = new Uint8Array(W * H);
+  { let top = 0; stack[top++] = bestComp.id; comp[bestComp.id] = 1;
+    while (top) {
+      const p = stack[--top], x = p % W;
+      for (const q of [x > 0 ? p - 1 : -1, x < W - 1 ? p + 1 : -1, p - W, p + W]) {
+        if (q >= 0 && q < W * H && light[q] && !comp[q]) { comp[q] = 1; stack[top++] = q; }
+      }
+    } }
+  const S = new Int32Array((W + 1) * (H + 1));
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    S[(y + 1) * (W + 1) + x + 1] = comp[y * W + x] + S[y * (W + 1) + x + 1] + S[(y + 1) * (W + 1) + x] - S[y * (W + 1) + x];
+  }
+  const R = { x: bestComp.x0 / G, y: bestComp.y0 / G, w: (bestComp.x1 - bestComp.x0 + 1) / G, h: (bestComp.y1 - bestComp.y0 + 1) / G };
+  detect = R.w >= 25 && R.h >= 15 ? Object.assign(R, { G, W, H, S }) : null;
+  renderLabelPanel();
+}
+function scheduleDetect() { clearTimeout(detectTimer); detectTimer = setTimeout(detectRegion, 250); }
+
+/** 격자 (x,y)부터 w×h 칸이 모두 흰 칸인지 */
+function allLight(D, x, y, w, h) {
+  if (x < 0 || y < 0 || x + w > D.W || y + h > D.H) return false;
+  const S = D.S, W1 = D.W + 1;
+  return S[(y + h) * W1 + x + w] - S[y * W1 + x + w] - S[(y + h) * W1 + x] + S[y * W1 + x] === w * h;
+}
+
+/**
+ * 흰 칸 위에 통째로 놓이는 폼텍 라벨지 — 많이 채우는 순.
+ * 라벨 네 변 바깥으로 MIN_GAP 만큼 흰 바탕이 더 있어야 통과 (모서리는 둥근 칸이어도 됨).
+ * 놓을 자리는 흰 칸 가운데에 가장 가까운 곳.
+ */
+function recommendStocks(D) {
+  if (!D) return [];
+  if (D.recs) return D.recs; // 한 번 계산하면 재사용 (화면 갱신마다 다시 계산하지 않게)
+  const G = D.G, g = Math.ceil(MIN_GAP * G), cx = (D.x + D.w / 2) * G, cy = (D.y + D.h / 2) * G;
+  const out = [];
+  for (const [id, s] of Object.entries(BadgeRender.LABEL_STOCKS)) {
+    const lw = Math.ceil(s.w * G), lh = Math.ceil(s.h * G);
+    if (lw + 2 * g > D.W || lh + 2 * g > D.H) continue;
+    let best = null;
+    for (let y = g; y + lh + g <= D.H; y++) for (let x = g; x + lw + g <= D.W; x++) {
+      if (!allLight(D, x - g, y, lw + 2 * g, lh) || !allLight(D, x, y - g, lw, lh + 2 * g)) continue;
+      const dist = (x + lw / 2 - cx) ** 2 + (y + lh / 2 - cy) ** 2;
+      if (!best || dist < best.dist) best = { dist, x, y };
+    }
+    if (!best) continue;
+    const px = Math.round(best.x / G * 10) / 10, py = Math.round(best.y / G * 10) / 10;
+    out.push({ id, s, px, py, gx: Math.min(px - D.x, D.x + D.w - px - s.w), gy: Math.min(py - D.y, D.y + D.h - py - s.h), cover: (s.w * s.h) / (D.w * D.h) });
+  }
+  D.recs = out.sort((a, b) => b.cover - a.cover);
+  return D.recs;
+}
+
+/** 추천 라벨지를 흰 칸 안 찾은 자리(가운데에 가장 가까운 곳)에 놓는다 (함께 이동 옵션이면 라벨 안 글자도 같이) */
+function applyStock(id) {
+  const s = BadgeRender.LABEL_STOCKS[id], lb = design.label, r = recommendStocks(detect).find(o => o.id === id);
+  if (!s || !r) return;
+  change(() => {
+    const nx = r.px, ny = r.py;
+    if ($('lb-with').checked) {
+      const mx = (nx + s.w / 2) - (lb.x + lb.w / 2), my = (ny + s.h / 2) - (lb.y + lb.h / 2);
+      design.elements.forEach(e => {
+        const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+        if (cx >= lb.x && cx <= lb.x + lb.w && cy >= lb.y && cy <= lb.y + lb.h) {
+          e.x = Math.round((e.x + mx) * 10) / 10; e.y = Math.round((e.y + my) * 10) / 10;
+        }
+      });
+    }
+    Object.assign(lb, { enabled: true, stock: id, w: s.w, h: s.h, x: nx, y: ny });
+  });
+}
+
+/** 추천 결과를 라벨지 메뉴·추천 상자·초록 점선으로 보여준다 */
+let lastRecKey = '';
+function renderDetect() {
+  const lb = design.label, on = !!lb.enabled, R = detect, recs = recommendStocks(R);
+  const key = R ? [R.x, R.y, R.w, R.h].join(',') : 'none';
+  if (key !== lastRecKey) { lastRecKey = key; $('lb-stock').innerHTML = stockOptions(recs); }
+  $('lb-stock').value = lb.stock;
+
+  const box = $('detbox'), k = PX * zoom;
+  box.style.display = on && R ? 'block' : 'none';
+  if (R) Object.assign(box.style, { left: R.x * k + 'px', top: R.y * k + 'px', width: R.w * k + 'px', height: R.h * k + 'px' });
+
+  const head = R ? `🔍 배경의 흰 칸: <b>${R.w.toFixed(1)} × ${R.h.toFixed(1)}mm</b> (X ${R.x.toFixed(1)}, Y ${R.y.toFixed(1)})` : '';
+  let html;
+  if (!bg) html = '<div class="rec-box none">배경 이미지를 넣으면 라벨 붙일 흰 칸을 찾아 맞는 폼텍 라벨지를 추천합니다.</div>';
+  else if (!R) html = '<div class="rec-box none">배경에서 라벨을 붙일 만한 밝은 칸을 찾지 못했습니다. 라벨지를 직접 고르고 위치를 맞추세요.</div>';
+  else if (!recs.length) html = `<div class="rec-box none">${head}<br>이 칸에 둘레 ${MIN_GAP}mm 여유를 두고 들어가는 폼텍 라벨이 없습니다.</div>`;
+  else {
+    const placed = r => lb.stock === r.id && Math.abs(lb.x - r.px) < 0.3 && Math.abs(lb.y - r.py) < 0.3;
+    html = `<div class="rec-box">${head}` + recs.slice(0, 3).map((r, i) => `<div class="rec-item">
+        <div class="t">${i === 0 ? '★ ' : ''}<b>${esc(r.s.code)}</b> ${r.s.w}×${r.s.h}mm · ${r.s.cols * r.s.rows}칸<br>
+        <span class="muted">${Math.round(r.cover * 100)}% 채움 · 여유 좌우 ${r.gx.toFixed(1)} / 상하 ${r.gy.toFixed(1)}mm</span></div>
+        ${placed(r) ? '<span class="muted">✔ 적용됨</span>' : `<button data-apply="${r.id}">적용</button>`}
+      </div>`).join('') + (recs.length > 3 ? `<div class="muted">그 밖에 ${recs.length - 3}종도 맞습니다 (라벨지 메뉴 맨 위)</div>` : '') + '</div>';
+  }
+  $('lb-rec').innerHTML = html;
+
+  // 라벨 방식이 꺼져 있을 때도 찾은 결과를 알려줌
+  $('lb-hint').hidden = on || !R || !recs.length;
+  if (!$('lb-hint').hidden) $('lb-hint').innerHTML = `${head}<br>맞는 라벨지: <b>${esc(recs[0].s.code)}</b> (${recs[0].s.w}×${recs[0].s.h}mm) — 위 칸을 체크하면 바로 적용됩니다.`;
+}
+$('lb-rec').addEventListener('click', e => { const id = e.target.dataset.apply; if (id) applyStock(id); });
+
+function stockInfo(id) {
+  const s = BadgeRender.LABEL_STOCKS[id], L = s.layout;
+  return `A4 한 장에 ${s.cols * s.rows}칸 (${s.cols}열×${s.rows}행) · 여백 왼쪽 ${L.marginL} / 위 ${L.marginT}mm · 칸 사이 ${L.gapX}/${L.gapY}mm — 폼텍 공식 규격`;
+}
+
+/** 켜는 순간, 지금 라벨이 흰 칸 안에 제대로 있지 않으면 가장 잘 맞는 라벨지를 흰 칸 가운데에 놓는다 */
+$('lb-on').addEventListener('change', e => {
+  const on = e.target.checked;
+  change(() => { design.label.enabled = on; });
+  const R = detect, recs = recommendStocks(R), lb = design.label;
+  const inside = R && lb.x >= R.x && lb.y >= R.y && lb.x + lb.w <= R.x + R.w && lb.y + lb.h <= R.y + R.h;
+  if (on && recs.length && !inside) applyStock(recs[0].id);
+});
+/** 라벨지를 바꾸면 크기만 바뀌고, 라벨 가운데 위치는 유지 */
+$('lb-stock').addEventListener('change', e => change(() => {
+  const s = BadgeRender.LABEL_STOCKS[e.target.value], lb = design.label;
+  const cx = lb.x + lb.w / 2, cy = lb.y + lb.h / 2;
+  const w = Math.min(s.w, design.w), h = Math.min(s.h, design.h);
+  Object.assign(lb, {
+    stock: e.target.value, w: s.w, h: s.h,
+    x: Math.round(Math.min(Math.max(0, cx - w / 2), design.w - w) * 10) / 10,
+    y: Math.round(Math.min(Math.max(0, cy - h / 2), design.h - h) * 10) / 10,
+  });
+}));
+$('sz-formtec').addEventListener('change', e => {
+  const s = BadgeRender.LABEL_STOCKS[e.target.value];
+  e.target.value = '';
+  if (s && confirm(`명찰 크기를 폼텍 ${s.code} 한 칸(${s.w}×${s.h}mm)으로 바꿀까요?\n출력 스테이션 ⚙ 설정의 '명찰 전체 인쇄용' 용지도 같은 프리셋(${s.code})으로 맞춰야 합니다.`)) resizeBadge(s.w, s.h);
+});
+// 숫자 입력도 끌기와 같은 규칙으로 이동 (입력을 마쳤을 때 반영)
+$('lb-x').addEventListener('change', () => shiftLabel((Number($('lb-x').value) || 0) - design.label.x, 0));
+$('lb-y').addEventListener('change', () => shiftLabel(0, (Number($('lb-y').value) || 0) - design.label.y));
+/** 라벨 자리 이동 (함께 이동 옵션이면 라벨 안 글자도 같이) */
+function shiftLabel(dx, dy) {
+  const lb = design.label;
+  const nx = Math.round(Math.min(Math.max(0, lb.x + dx), design.w - lb.w) * 10) / 10;
+  const ny = Math.round(Math.min(Math.max(0, lb.y + dy), design.h - lb.h) * 10) / 10;
+  const mx = nx - lb.x, my = ny - lb.y;
+  if (!mx && !my) return;
+  change(() => {
+    if ($('lb-with').checked) {
+      design.elements.forEach(e => {
+        const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
+        if (cx >= lb.x && cx <= lb.x + lb.w && cy >= lb.y && cy <= lb.y + lb.h) {
+          e.x = Math.round((e.x + mx) * 10) / 10; e.y = Math.round((e.y + my) * 10) / 10;
+        }
+      });
+    }
+    lb.x = nx; lb.y = ny;
+  });
+}
+let lbEdit = false;
+$('btn-lb-edit').onclick = () => { lbEdit = !lbEdit; sel = null; renderAll(); };
+$('btn-lb-center').onclick = () => shiftLabel(Math.round((design.w - design.label.w) / 2 * 100) / 100 - design.label.x, 0);
+
+/* ---------- 배경 ---------- */
+document.querySelectorAll('[data-bg]').forEach(inp => {
+  inp.addEventListener('focus', () => snapshot());
+  inp.addEventListener('input', () => {
+    const k = inp.dataset.bg;
+    design.bg[k] = ['posX', 'posY', 'overlayOpacity'].includes(k) ? Number(inp.value) : inp.value;
+    markDirty();
+    renderAll();
+    scheduleDetect(); // 이미지 위치·맞춤이 바뀌면 흰 칸도 다시 찾기
+  });
+});
+
+$('btn-bg').onclick = () => $('bg-file').click();
+$('bg-file').onchange = async e => {
+  const f = e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    setStatus('이미지 처리 중…');
+    bg = await shrinkImage(f);
+    bgDirty = true;
+    markDirty();
+    checkInk();
+    renderAll();
+    await detectRegion(); // 새 배경에서 라벨 붙일 흰 칸 찾기 → 라벨지 추천
+  } catch (err) {
+    alert('이미지를 읽지 못했습니다: ' + err.message);
+  }
+};
+$('btn-bg-del').onclick = () => {
+  if (!bg) return;
+  bg = ''; bgDirty = true; markDirty(); checkInk(); renderAll(); detectRegion();
+};
+
+/** 긴 변 1600px 이하로 줄여 용량을 낮춘다 (명찰 크기에서 300dpi 수준) */
+function shrinkImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, 1600 / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      let out = file.type === 'image/png' ? c.toDataURL('image/png') : '';
+      if (!out || out.length > 1500000) out = c.toDataURL('image/jpeg', 0.88);
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('이미지 형식을 확인하세요')); };
+    img.src = url;
+  });
+}
+
+/** 배경이 어두우면 잉크 경고 */
+function checkInk() {
+  $('ink-warn').hidden = true;
+  if (!bg) return;
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'); c.width = 40; c.height = 40;
+    const g = c.getContext('2d'); g.drawImage(img, 0, 0, 40, 40);
+    const d = g.getImageData(0, 0, 40, 40).data;
+    let sum = 0;
+    for (let i = 0; i < d.length; i += 4) sum += (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) / 255;
+    $('ink-warn').hidden = sum / (d.length / 4) > 0.45;
+  };
+  img.src = bg;
+}
+
+/* ---------- 행사 정보 ---------- */
+$('ev-name').addEventListener('input', () => { infoDirty = true; markDirty(); renderStage(); });
+$('ev-status').addEventListener('change', () => { infoDirty = true; markDirty(); });
+$('btn-copy').onclick = async () => {
+  try { await navigator.clipboard.writeText($('ev-url').value); $('btn-copy').textContent = '복사됨'; }
+  catch (e) { $('ev-url').select(); document.execCommand('copy'); $('btn-copy').textContent = '복사됨'; }
+  setTimeout(() => $('btn-copy').textContent = '복사', 1500);
+};
+
+/** QR은 SVG로 그려 화면에서 작게 보여도 흐려지지 않게 한다 (흐린 QR은 폰 카메라가 못 읽음) */
+function drawQR() {
+  const url = $('ev-url').value;
+  BadgeRender.qrSVG(url, 150)
+    .then(svg => { if ($('ev-url').value === url) $('qr-box').innerHTML = svg; })
+    .catch(() => { $('qr-box').textContent = '(QR은 인터넷 연결 필요)'; });
+}
+
+$('btn-qr-big').onclick = async () => {
+  if (!ev) return;
+  const div = document.createElement('div');
+  div.id = 'qr-full';
+  div.innerHTML = (await BadgeRender.qrSVG($('ev-url').value, '100%')) +
+    `<p><b>${esc($('ev-name').value)}</b> 현장 등록<br><span style="font-size:14px;color:#888">화면을 클릭하거나 Esc를 누르면 닫힙니다</span></p>`;
+  const close = () => { div.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape') close(); };
+  div.onclick = close;
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(div);
+};
+
+$('btn-qr-save').onclick = async () => {
+  if (!ev) return;
+  const a = document.createElement('a');
+  a.href = await BadgeRender.qrPNG($('ev-url').value, 1200);
+  a.download = `QR_${$('ev-name').value.replace(/[\\/:*?"<>|]/g, '_')}.png`;
+  a.click();
+};
+
+/* ---------- 저장 ---------- */
+async function save() {
+  if (!ev || !design) return;
+  const btn = $('btn-save');
+  btn.disabled = true;
+  setStatus('저장 중…');
+  try {
+    if (infoDirty) {
+      const name = $('ev-name').value.trim();
+      if (!name) throw new Error('행사명을 입력하세요.');
+      ev = (await api.post({ action: 'saveEvent', event: { id: ev.id, name, status: $('ev-status').value } })).event;
+    }
+    await api.post({ action: 'saveDesign', id: ev.id, design });
+    if (bgDirty) await api.post({ action: 'saveBg', id: ev.id, data: bg });
+    dirty = bgDirty = infoDirty = false;
+    setStatus('저장됨 ' + new Date().toTimeString().slice(0, 5));
+    await loadEvents();
+  } catch (err) {
+    setStatus('저장 실패', true);
+    alert('저장하지 못했습니다: ' + err.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+$('btn-save').onclick = save;
+
+$('btn-undo').onclick = () => {
+  if (!hist.length) return;
+  design = JSON.parse(hist.pop());
+  if (sel && !selEl()) sel = null;
+  markDirty();
+  renderAll();
+  scheduleDetect();
+};
+
+/* ---------- 새 행사 ---------- */
+$('btn-new').onclick = () => {
+  $('new-name').value = '';
+  $('new-from').innerHTML = '<option value="">기본 디자인 (흰 배경)</option>' +
+    events.slice().reverse().map(e => `<option value="${esc(e.id)}"${ev && e.id === ev.id ? ' selected' : ''}>'${esc(e.name)}' 디자인 복사</option>`).join('');
+  $('dlg-new').showModal();
+  $('new-name').focus();
+};
+let creating = false;
+// 'close' 이벤트는 창이 백그라운드면 오지 않을 수 있어 버튼 제출 시점에 처리
+$('dlg-new').querySelector('form').addEventListener('submit', async e => {
+  if (!e.submitter || e.submitter.value !== 'ok' || creating) return;
+  const name = $('new-name').value.trim();
+  if (!name) { alert('행사명을 입력하세요.'); return; }
+  if (events.some(e => e.name === name) && !confirm(`'${name}' 행사가 이미 있습니다. 같은 이름으로 하나 더 만들까요?`)) return;
+  if (dirty && !confirm('현재 행사에 저장하지 않은 변경사항이 있습니다. 버리고 새 행사를 만들까요?')) return;
+  creating = true;
+  $('btn-new').disabled = true;
+  $('btn-new').textContent = '만드는 중…';
+  try {
+    setStatus('새 행사 만드는 중… (몇 초 걸립니다)');
+    const from = $('new-from').value;
+    const created = (await api.post({ action: 'saveEvent', event: { name } })).event;
+    let d = BadgeRender.defaultDesign(), b = '';
+    if (from) { const src = await api.get('event', { id: from }); d = BadgeRender.normalize(src.design); b = src.bg || ''; }
+    await api.post({ action: 'saveDesign', id: created.id, design: d });
+    if (b) await api.post({ action: 'saveBg', id: created.id, data: b });
+    dirty = false;
+    await loadEvents();
+    await selectEvent(created.id);
+  } catch (err) {
+    setStatus('실패', true);
+    alert('행사를 만들지 못했습니다: ' + err.message);
+  } finally {
+    creating = false;
+    $('btn-new').disabled = false;
+    $('btn-new').textContent = '＋ 새 행사';
+  }
+});
+
+/* ---------- 행사 삭제 ---------- */
+$('btn-del-event').onclick = async () => {
+  if (!ev) return;
+  $('del-name').textContent = `'${ev.name}'`;
+  $('del-people').checked = false;
+  $('del-confirm').value = '';
+  $('del-ok').disabled = true;
+  $('del-count').textContent = '…';
+  $('dlg-del').showModal();
+  try { $('del-count').textContent = (await api.get('all', { event: ev.id })).items.length; }
+  catch (e) { $('del-count').textContent = '?'; }
+};
+$('del-confirm').addEventListener('input', () => { $('del-ok').disabled = $('del-confirm').value.trim() !== ev.name; });
+$('dlg-del').querySelector('form').addEventListener('submit', async e => {
+  if (!e.submitter || e.submitter.value !== 'ok' || !ev || $('del-confirm').value.trim() !== ev.name) return;
+  const target = ev;
+  $('btn-del-event').disabled = true;
+  try {
+    setStatus('삭제 중…');
+    const r = await api.post({ action: 'deleteEvent', id: target.id, withPeople: $('del-people').checked });
+    dirty = bgDirty = infoDirty = false;
+    ev = null; design = null; bg = '';
+    if (lsGet('designer.last', '') === target.id) lsSet('designer.last', '');
+    await loadEvents();
+    const next = events.filter(e => e.status !== '종료').pop() || events[events.length - 1];
+    if (next) await selectEvent(next.id);
+    else showNoEvent();
+    setStatus(`'${target.name}' 삭제됨` + (r.removedPeople ? ` (등록자 ${r.removedPeople}명 포함)` : ''));
+  } catch (err) {
+    setStatus('삭제 실패', true);
+    alert('삭제하지 못했습니다: ' + err.message);
+  } finally {
+    $('btn-del-event').disabled = false;
+  }
+});
+
+/** 행사가 하나도 없을 때 */
+function showNoEvent() {
+  ev = null; design = null; bg = ''; sel = null; hist = []; detect = null; detectSeq++;
+  $('detbox').style.display = 'none';
+  $('badge-host').innerHTML = '';
+  $('stage').style.width = '0px';
+  $('stage').style.height = '0px';
+  $('selbox').style.display = 'none';
+  $('event-sel').innerHTML = '<option value="">(행사 없음)</option>';
+  ['ev-name', 'ev-url'].forEach(id => $(id).value = '');
+  $('qr-box').innerHTML = '';
+  $('layers').innerHTML = '';
+  setStatus('행사가 없습니다 — [＋ 새 행사]로 만드세요');
+}
+
+$('event-sel').onchange = e => selectEvent(e.target.value).catch(err => alert('행사를 불러오지 못했습니다.\n' + err.message));
+
+/* ---------- 미리보기 샘플 / 테스트 인쇄 ---------- */
+['s-org', 's-name', 's-title'].forEach(id => $(id).addEventListener('input', renderStage));
+$('btn-long').onclick = () => {
+  longSample = !longSample;
+  const s = longSample ? LONG : SAMPLE;
+  $('s-org').value = s.org; $('s-name').value = s.name; $('s-title').value = s.title;
+  $('btn-long').textContent = longSample ? '보통 글자로' : '긴 글자 테스트';
+  renderStage();
+};
+$('guides').onchange = e => $('badge-host').classList.toggle('guides', e.target.checked);
+
+/** 라벨 방식이면 라벨지에 이름 부분만, 아니면 명찰 전체를 출력 PC 용지 설정대로 인쇄 */
+$('btn-print').onclick = () => {
+  const people = [sample(), LONG, { org: '다시봄협동조합', name: '이서연', title: '' }, { org: '(주)새출발테크', name: '박도윤', title: '팀장' }];
+  const lm = BadgeRender.isLabelMode(design);
+  const d = lm ? BadgeRender.labelDesign(design) : design;
+  const L = lm ? labelLayout(design.label.stock) : LAYOUT;
+  testPrint(L, d, i => BadgeRender.badgeHTML(d, lm ? '' : bg, people[i % people.length], $('ev-name').value), people, '');
+};
+$('btn-print-bg').onclick = () => {
+  const d = BadgeRender.backgroundDesign(design);
+  testPrint(LAYOUT, d, () => BadgeRender.badgeHTML(d, bg, {}, $('ev-name').value), [], 'cut');
+};
+
+async function testPrint(L, d, htmlFor, people, cls) {
+  const cells = [...Array(L.cols * L.rows).keys()].map(i => ({ slot: i, html: htmlFor(i), cls }));
+  $('print-root').innerHTML = BadgeRender.pagesHTML(L, [cells], d);
+  await BadgeRender.loadFonts(d, people.map(p => p.org + p.name + p.title).concat($('ev-name').value));
+  await new Promise(r => setTimeout(r, 100));
+  BadgeRender.fitAll($('print-root'));
+  window.print();
+}
+
+/* ---------- 단축키 ---------- */
+document.addEventListener('keydown', e => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); $('btn-undo').click(); return; }
+  if (typing) return;
+  const el = selEl();
+  const step = e.shiftKey ? 5 : 0.5;
+  const moves = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  if (!el && lbEdit && moves[e.key]) { e.preventDefault(); shiftLabel(moves[e.key][0], moves[e.key][1]); return; }
+  if (e.key === 'Escape' && lbEdit) { lbEdit = false; renderAll(); return; }
+  if (!el) return;
+  if (moves[e.key]) { e.preventDefault(); change(() => { el.x = r05(el.x + moves[e.key][0]); el.y = r05(el.y + moves[e.key][1]); }); }
+  if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); $('btn-del').click(); }
+});
+
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('resize', () => design && renderStage());
+
+/* ---------- 단계 탭 ---------- */
+function showStep(step) {
+  if (!document.querySelector(`.pane[data-pane="${step}"]`)) step = 'design';
+  document.querySelectorAll('.steps-nav button').forEach(b => b.classList.toggle('on', b.dataset.step === step));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === step));
+  try { localStorage.setItem('badge.designer.step', step); } catch (e) { /* 무시 */ }
+}
+$('steps-nav').addEventListener('click', e => {
+  const b = e.target.closest('[data-step]');
+  if (b) showStep(b.dataset.step);
+});
+showStep((() => { try { return localStorage.getItem('badge.designer.step') || 'design'; } catch (e) { return 'design'; } })());
+
+/* ---------- 시작 ---------- */
+(async function init() {
+  if (!SRV.apiUrl) { $('nosrv').hidden = false; return; }
+  await BadgeGate.require('명찰 디자이너');
+  $('main').hidden = false;
+  BadgeRender.loadQR().then(() => { if (design) renderStage(); }).catch(() => {}); // 명찰 속 개인 QR 미리보기용
+  $('s-org').value = SAMPLE.org; $('s-name').value = SAMPLE.name; $('s-title').value = SAMPLE.title;
+  try {
+    setStatus('불러오는 중…');
+    await loadEvents();
+    const last = lsGet('designer.last', '') || stationCfg.eventId;
+    const pick = events.find(e => e.id === last) || events.filter(e => e.status !== '종료').pop() || events[events.length - 1];
+    if (pick) await selectEvent(pick.id);
+    else showNoEvent();
+  } catch (err) {
+    setStatus('서버 연결 실패', true);
+    alert('서버에 연결하지 못했습니다: ' + err.message);
+  }
+})();
+</script>
+</body>
+</html>
