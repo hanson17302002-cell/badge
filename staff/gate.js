@@ -22,31 +22,32 @@
   }
 
   const CSS = `
-  #gate { position:fixed; inset:0; z-index:9999; background:rgba(15,20,27,.92); display:flex; align-items:center; justify-content:center; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; }
-  #gate form { background:#fff; color:#1d232b; width:min(380px, 92vw); border-radius:16px; padding:26px 24px; box-shadow:0 20px 60px rgba(0,0,0,.4); }
+  #gate { position:fixed; inset:0; z-index:9999; background:rgba(241,243,245,.97); display:flex; align-items:center; justify-content:center; font-family:"Pretendard","Malgun Gothic","Apple SD Gothic Neo",sans-serif; }
+  #gate form { background:#fff; color:#16181d; width:min(400px, 92vw); border-radius:16px; padding:30px 28px; box-shadow:0 8px 40px rgba(0,0,0,.1); }
   #gate h2 { margin:0 0 4px; font-size:20px; }
-  #gate p { margin:0 0 18px; color:#6b7580; font-size:13px; line-height:1.5; }
+  #gate p { margin:0 0 18px; color:#565a63; font-size:13px; line-height:1.5; }
   #gate label { display:block; font-size:13px; font-weight:600; margin:12px 0 5px; }
-  #gate input { width:100%; box-sizing:border-box; font:inherit; font-size:16px; padding:11px 12px; border:1px solid #cfd6de; border-radius:9px; }
-  #gate input:focus { outline:2px solid #2f6fed; border-color:#2f6fed; }
-  #gate button { width:100%; margin-top:18px; font:inherit; font-size:16px; font-weight:700; padding:13px; border:0; border-radius:10px; background:#2f6fed; color:#fff; cursor:pointer; }
+  #gate input { width:100%; box-sizing:border-box; font:inherit; font-size:16px; padding:11px 12px; border:1px solid #e6e8eb; border-radius:8px; }
+  #gate input:focus { outline:2px solid #0e93a5; border-color:#0e93a5; }
+  #gate button { width:100%; margin-top:18px; font:inherit; font-size:16px; font-weight:700; padding:13px; border:0; border-radius:12px; background:#0e93a5; color:#fff; cursor:pointer; }
   #gate button:disabled { opacity:.6; }
   #gate .err { color:#dc2626; font-size:14px; min-height:1.2em; margin-top:10px; }
-  #gate-who { position:fixed; right:10px; bottom:10px; z-index:50; background:rgba(29,35,43,.85); color:#fff; font:12px "Malgun Gothic",sans-serif; padding:5px 10px; border-radius:999px; }
-  #gate-who a { color:#9cc3ff; margin-left:6px; cursor:pointer; text-decoration:underline; }
+  #gate-who { position:fixed; right:10px; bottom:10px; z-index:50; background:#f1f3f5; color:#16181d; font-size:13px; font-weight:500; padding:8px 12px; border-radius:8px; white-space:nowrap; }
+  #who-slot #gate-who { position:static; display:inline-block; }
+  #gate-who a { color:#565a63; margin-left:8px; cursor:pointer; text-decoration:underline; }
   /* 환영 모션 */
   #gate { transition:opacity .5s ease, backdrop-filter .5s ease; }
   #gate.bye { opacity:0; }
   #gate form.leave { animation:gate-leave .35s ease forwards; }
-  #gate .welcome { text-align:center; color:#fff; }
+  #gate .welcome { text-align:center; color:#16181d; }
   #gate .welcome svg { width:84px; height:84px; display:block; margin:0 auto 18px; }
-  #gate .welcome circle { fill:none; stroke:#34c47c; stroke-width:4; stroke-dasharray:252; stroke-dashoffset:252; animation:gate-draw .6s ease-out forwards; }
-  #gate .welcome path { fill:none; stroke:#34c47c; stroke-width:5; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:gate-draw .35s .5s ease-out forwards; }
-  #gate .welcome .hi { font-size:17px; color:#9fb0c3; opacity:0; animation:gate-up .5s .55s ease-out forwards; }
+  #gate .welcome circle { fill:none; stroke:#0e93a5; stroke-width:4; stroke-dasharray:252; stroke-dashoffset:252; animation:gate-draw .6s ease-out forwards; }
+  #gate .welcome path { fill:none; stroke:#0e93a5; stroke-width:5; stroke-linecap:round; stroke-linejoin:round; stroke-dasharray:60; stroke-dashoffset:60; animation:gate-draw .35s .5s ease-out forwards; }
+  #gate .welcome .hi { font-size:17px; color:#565a63; opacity:0; animation:gate-up .5s .55s ease-out forwards; }
   #gate .welcome .nm { font-size:44px; font-weight:800; letter-spacing:.02em; margin:6px 0 4px; opacity:0; animation:gate-up .55s .7s ease-out forwards; }
-  #gate .welcome .og { font-size:18px; color:#cfd8e3; opacity:0; animation:gate-up .5s .85s ease-out forwards; }
-  #gate .welcome .pg { display:inline-block; margin-top:20px; font-size:14px; color:#9cc3ff; border:1px solid rgba(156,195,255,.4); border-radius:999px; padding:6px 14px; opacity:0; animation:gate-up .5s 1.05s ease-out forwards; }
-  #gate .welcome .skip { margin-top:26px; font-size:12px; color:#6b7a8c; opacity:0; animation:gate-up .4s 1.4s ease-out forwards; }
+  #gate .welcome .og { font-size:18px; color:#565a63; opacity:0; animation:gate-up .5s .85s ease-out forwards; }
+  #gate .welcome .pg { display:inline-block; margin-top:20px; font-size:14px; color:#0b7f8f; background:#e6f6f8; border-radius:8px; padding:6px 14px; opacity:0; animation:gate-up .5s 1.05s ease-out forwards; }
+  #gate .welcome .skip { margin-top:26px; font-size:12px; color:#868b94; opacity:0; animation:gate-up .4s 1.4s ease-out forwards; }
   @keyframes gate-leave { to { opacity:0; transform:translateY(-12px) scale(.96); } }
   @keyframes gate-draw { to { stroke-dashoffset:0; } }
   @keyframes gate-up { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:none; } }
@@ -105,9 +106,9 @@
 
   function showWho(page, user) {
     let el = document.getElementById('gate-who');
-    if (!el) { el = document.createElement('div'); el.id = 'gate-who'; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'gate-who'; (document.getElementById('who-slot') || document.body).appendChild(el); }
     el.innerHTML = '';
-    el.append('👤 ' + user.org + ' ' + user.name);
+    el.append(user.org + ' ' + user.name);
     const a = document.createElement('a');
     a.textContent = '로그아웃';
     a.onclick = () => { if (ss) store.del(ss, page); location.reload(); };
@@ -150,7 +151,7 @@
       const wrap = document.createElement('div');
       wrap.id = 'gate';
       wrap.innerHTML = `<form autocomplete="off">
-        <h2>🔒 운영진 로그인</h2>
+        <h2>운영진 로그인</h2>
         <p>${again ? '로그인 시간이 지났습니다. 다시 로그인하면 하던 작업을 이어서 합니다.' : page + ' 화면입니다. 사용 기록을 위해 소속과 성명을 입력하세요.'}</p>
         <label>소속</label><input name="org" maxlength="40" required>
         <label>성명</label><input name="name" maxlength="20" required>

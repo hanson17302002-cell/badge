@@ -4,21 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>현장 대시보드</title>
-<script src="config.js?v=20261002f"></script>
-<script src="gate.js?v=20261013a"></script>
+<script src="config.js?v=20261109a"></script>
+<script src="gate.js?v=20261109a"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
+<link rel="stylesheet" href="ui.css?v=20261109a">
+<script src="ui.js?v=20261109a"></script>
 <style>
-  :root { --bg:#0f141b; --card:#18202b; --line:#2a3442; --text:#eef2f7; --muted:#8b97a7; --accent:#4d8dff; --ok:#34c47c; --warn:#f2a93b; }
-  * { box-sizing:border-box; }
-  [hidden] { display:none !important; }
-  body { margin:0; font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif; background:var(--bg); color:var(--text); }
-  header { display:flex; align-items:center; gap:14px; padding:14px 22px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
-  header h1 { margin:0; font-size:24px; }
-  header select { font:inherit; font-size:16px; padding:6px 10px; border-radius:8px; background:var(--card); color:var(--text); border:1px solid var(--line); max-width:440px; }
-  header .grow { flex:1; }
   #clock { font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; }
-  #updated { color:var(--muted); font-size:13px; }
+  #updated { color:var(--faint); font-size:13px; }
+  .link-usage { color:var(--muted); font-size:13px; }
   main { padding:18px 22px; display:grid; gap:16px; grid-template-columns:repeat(12, 1fr); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; min-width:0; }
+  .card { background:var(--card); border-radius:14px; padding:18px; min-width:0; }
   .card h2 { margin:0 0 12px; font-size:16px; color:var(--muted); font-weight:600; }
   .kpi { grid-column:span 2; }
   .kpi.big { grid-column:span 4; }
@@ -26,7 +22,7 @@
   .kpi.big .v { font-size:64px; }
   .kpi .v small { font-size:.45em; color:var(--muted); font-weight:600; }
   .kpi .s { color:var(--muted); margin-top:6px; font-size:14px; }
-  .bar { height:10px; background:#263040; border-radius:6px; margin-top:12px; overflow:hidden; }
+  .bar { height:10px; background:var(--fill-hover); border-radius:6px; margin-top:12px; overflow:hidden; }
   .bar i { display:block; height:100%; background:var(--ok); border-radius:6px; }
   .chart { grid-column:span 8; }
   .side { grid-column:span 4; }
@@ -36,7 +32,7 @@
   .hbar { display:grid; grid-template-columns:120px 1fr 56px; gap:10px; align-items:center; margin:8px 0; font-size:15px; }
   .hbar .t { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .hbar .n { text-align:right; font-variant-numeric:tabular-nums; font-weight:700; }
-  .hbar .track { height:14px; background:#263040; border-radius:7px; overflow:hidden; }
+  .hbar .track { height:14px; background:var(--fill); border-radius:7px; overflow:hidden; }
   .hbar .track i { display:block; height:100%; background:var(--accent); border-radius:7px; }
   .recent { list-style:none; margin:0; padding:0; }
   .recent li { display:flex; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:16px; }
@@ -44,19 +40,20 @@
   .recent .tm { color:var(--muted); font-variant-numeric:tabular-nums; width:48px; flex:0 0 auto; }
   .recent .who { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .recent .who small { color:var(--muted); margin-left:6px; }
-  .tag { font-size:12px; padding:2px 7px; border-radius:6px; background:#263040; color:var(--muted); }
-  .tag.pre { background:#1d3557; color:#9cc3ff; }
+  .tag { font-size:12px; padding:2px 7px; border-radius:6px; background:var(--fill); color:var(--muted); }
+  .tag.pre { background:var(--accent-bg); color:var(--accent-text); }
   .empty { color:var(--muted); padding:16px 0; }
-  .err { color:#ff8a8a; padding:30px; text-align:center; font-size:18px; }
+  .err { color:var(--bad); padding:30px; text-align:center; font-size:18px; }
 </style>
 </head>
 <body>
-<header>
-  <h1>📈 현장 대시보드</h1>
+<header class="topbar">
+  <span class="brand"><i data-ic="chart"></i></span>
   <select id="event-sel"></select>
   <span class="grow"></span>
   <span id="updated"></span>
-  <a href="usage.html" style="color:var(--muted);font-size:13px">🔐 접속 기록</a>
+  <a class="link-usage" href="usage.html">접속 기록</a>
+  <span id="who-slot"></span>
   <span id="clock"></span>
 </header>
 <div id="err" class="err" hidden></div>
@@ -197,12 +194,12 @@ function renderChart(times) {
   const max = Math.max(...counts, 1), bw = (W - pad.l - pad.r) / n;
   const yTicks = [0, Math.ceil(max / 2), max].filter((v, i, a) => a.indexOf(v) === i);
   let svg = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="시간대별 도착 인원">`;
-  yTicks.forEach(v => { const y = H - pad.b - (v / max) * (H - pad.t - pad.b); svg += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y}" y2="${y}" stroke="#2a3442"/><text x="${pad.l - 6}" y="${y + 4}" text-anchor="end">${v}</text>`; });
+  yTicks.forEach(v => { const y = H - pad.b - (v / max) * (H - pad.t - pad.b); svg += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y}" y2="${y}" stroke="#e6e8eb"/><text x="${pad.l - 6}" y="${y + 4}" text-anchor="end">${v}</text>`; });
   const every = Math.ceil(n / 12);
   counts.forEach((c, i) => {
     const h = (c / max) * (H - pad.t - pad.b), x = pad.l + i * bw + 2, y = H - pad.b - h;
-    svg += `<rect x="${x}" y="${y}" width="${Math.max(2, bw - 4)}" height="${h}" rx="3" fill="#4d8dff"><title>${hm(new Date(start + i * STEP).toISOString())} · ${c}명</title></rect>`;
-    if (c) svg += `<text x="${x + (bw - 4) / 2}" y="${y - 5}" text-anchor="middle" style="fill:#eef2f7;font-weight:700">${c}</text>`;
+    svg += `<rect x="${x}" y="${y}" width="${Math.max(2, bw - 4)}" height="${h}" rx="3" fill="#0e93a5"><title>${hm(new Date(start + i * STEP).toISOString())} · ${c}명</title></rect>`;
+    if (c) svg += `<text x="${x + (bw - 4) / 2}" y="${y - 5}" text-anchor="middle" style="fill:#16181d;font-weight:700">${c}</text>`;
     if (i % every === 0) svg += `<text x="${x + (bw - 4) / 2}" y="${H - 8}" text-anchor="middle">${hm(new Date(start + i * STEP).toISOString())}</text>`;
   });
   el.innerHTML = svg + '</svg>';
