@@ -4,20 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>명찰 디자이너</title>
-<script src="config.js?v=20261109a"></script>
-<script src="gate.js?v=20261109a"></script>
-<script src="badge-render.js?v=20261109a"></script>
+<script src="config.js?v=20261109c"></script>
+<script src="gate.js?v=20261109c"></script>
+<script src="badge-render.js?v=20261109c"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
-<link rel="stylesheet" href="ui.css?v=20261109a">
-<script src="ui.js?v=20261109a"></script>
+<link rel="stylesheet" href="ui.css?v=20261109c">
+<script src="ui.js?v=20261109c"></script>
 <style>
   #save-state { font-size:13.5px; color:var(--faint); }
   #save-state.dirty { color:var(--warn); font-weight:600; }
 
   /* 배치: 단계 탭 | 단계 패널 | 명찰 | 선택한 요소 */
-  main { display:grid; grid-template-columns: 72px 310px minmax(0,1fr) 280px; min-height:calc(100vh - var(--topbar)); align-items:stretch; }
-  @media (max-width:1300px) { main { grid-template-columns: 72px 300px minmax(0,1fr); } main .props { grid-column:2 / -1; border-left:0; border-top:1px solid var(--line); } }
-  @media (max-width:900px) { main { grid-template-columns: 1fr; } main .props { grid-column:auto; } }
+  main { display:grid; grid-template-columns: 72px 310px minmax(0,1fr); min-height:calc(100vh - var(--topbar)); align-items:stretch; }
+  @media (max-width:900px) { main { grid-template-columns: 1fr; } .panel { position:static !important; height:auto !important; border-right:0; } }
   .panel { background:#fff; border-right:1px solid var(--line); padding:18px 18px 40px; overflow:auto; position:sticky; top:var(--topbar); height:calc(100vh - var(--topbar)); }
   .pane { display:none; }
   .pane.on { display:block; animation:pane-in .18s ease-out; }
@@ -30,17 +29,40 @@
   details.adv { margin-top:16px; background:var(--fill); border-radius:10px; padding:10px 12px; }
   details.adv summary { cursor:pointer; font-weight:600; color:var(--muted); font-size:13.5px; }
   details.adv[open] summary { margin-bottom:10px; }
-  .props details.adv { margin:10px 0; }
-  .props { background:#fff; border-left:1px solid var(--line); padding:18px; position:sticky; top:var(--topbar); height:calc(100vh - var(--topbar)); overflow:auto; }
-  .props h2 { font-size:17px; margin:0 0 12px; }
-  .props-empty { color:var(--muted); text-align:center; padding:40px 10px; font-size:14px; line-height:1.7; }
-  .props-empty .big { font-size:26px; margin-bottom:8px; color:var(--accent-text); }
+  /* 위쪽 가로 도구막대 */
+  .ctxbar { position:sticky; top:calc(var(--topbar) + 8px); z-index:4; display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-height:50px; max-width:100%; padding:7px 10px; background:#fff; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,.08); }
+  .ctx-title { font-size:14px; padding:0 4px; white-space:nowrap; }
+  .ctx-empty { color:var(--muted); font-size:14px; padding:0 8px; }
+  .ctx-empty .ic { color:var(--accent-text); }
+  .ctx-body { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .ctx-body > select, .ctx-text input { font:inherit; font-size:14px; height:36px; padding:0 8px; border:1px solid var(--input); border-radius:8px; background:#fff; max-width:150px; }
+  .ctx-text input { width:150px; }
+  .stepper { display:inline-flex; align-items:center; height:36px; border:1px solid var(--input); border-radius:8px; overflow:hidden; background:#fff; }
+  .stepper button { min-height:34px; width:30px; padding:0; border-radius:0; background:transparent; font-size:16px; }
+  .stepper button:hover { background:var(--fill); }
+  .stepper input { width:52px; height:34px; border:0; text-align:center; font:inherit; font-size:14px; -moz-appearance:textfield; }
+  .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance:none; }
+  .swatch { display:inline-flex; width:36px; height:36px; border:1px solid var(--input); border-radius:8px; overflow:hidden; cursor:pointer; }
+  .swatch input { width:48px; height:48px; margin:-6px; border:0; padding:0; cursor:pointer; }
+  .seg { display:inline-flex; background:var(--fill); border-radius:8px; padding:2px; }
+  .seg button { min-height:32px; width:34px; padding:0; background:transparent; border-radius:6px; }
+  .seg button.on { background:#fff; color:var(--accent-text); box-shadow:0 1px 3px rgba(0,0,0,.15); }
+  .vsep { width:1px; height:24px; background:var(--line); margin:0 2px; }
+  .ctx-more { position:relative; }
+  .ctx-more summary { list-style:none; display:flex; align-items:center; min-height:36px; padding:0 12px; border-radius:8px; background:var(--fill); font-size:14px; font-weight:500; cursor:pointer; }
+  .ctx-more summary::-webkit-details-marker { display:none; }
+  .ctx-more[open] summary { background:var(--accent-bg); color:var(--accent-text); }
+  .ctx-more .pop { position:absolute; top:44px; right:0; width:300px; padding:14px; background:#fff; border-radius:12px; box-shadow:0 8px 30px rgba(0,0,0,.18); z-index:7; }
+  .page-head { display:flex; align-items:center; justify-content:space-between; gap:12px; width:min(560px,100%); margin-top:14px; font-size:14px; color:var(--muted); }
+  .page-head b { color:var(--text); }
+  .page-head .check { margin:0; font-size:13px; }
+  .hint-line { margin-top:8px; text-align:center; font-size:12.5px; color:var(--faint); }
   .field { display:block; margin-bottom:10px; }
   .field > span { display:block; font-size:13px; color:var(--muted); margin-bottom:4px; font-weight:600; }
-  .field input:not([type=checkbox]):not([type=range]):not([type=color]), .field select, .field textarea { width:100%; font:inherit; font-size:15px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  .field input:not([type=checkbox]):not([type=range]):not([type=color]), .field select, .field textarea { width:100%; font:inherit; font-size:15px; padding:8px 10px; border:1px solid var(--input); border-radius:8px; background:#fff; }
   .field input:focus, .field select:focus, .field textarea:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:var(--accent); }
   .field input[type=range] { width:100%; }
-  .field input[type=color] { width:100%; height:36px; border:1px solid var(--line); border-radius:8px; padding:2px; background:#fff; }
+  .field input[type=color] { width:100%; height:36px; border:1px solid var(--input); border-radius:8px; padding:2px; background:#fff; }
   .row { display:flex; gap:8px; }
   .row > * { flex:1; min-width:0; }
   .btns { display:flex; gap:6px; flex-wrap:wrap; }
@@ -63,8 +85,8 @@
   #qr-full p { margin:0; font-size:18px; color:#333; text-align:center; }
 
   /* 가운데 작업 영역 */
-  .work { display:flex; flex-direction:column; align-items:center; padding:18px 16px 30px; min-width:0; }
-  #stage-wrap { width:100%; display:flex; justify-content:center; padding:16px 0; }
+  .work { display:flex; flex-direction:column; align-items:center; padding:8px 16px 20px; min-width:0; }
+  #stage-wrap { width:100%; display:flex; justify-content:center; padding:10px 0 12px; }
   #stage { position:relative; background:repeating-conic-gradient(#e6e8eb 0% 25%, #f7f8f9 0% 50%) 0 0/16px 16px; box-shadow:0 2px 14px rgba(0,0,0,.1); }
   #badge-host { position:absolute; left:0; top:0; transform-origin:0 0; }
   #badge-host.guides .bx-el { outline:1px dashed rgba(14,147,165,.6); }
@@ -92,9 +114,6 @@
   #lbbox span:hover { background:#be123c; }
   #lbbox.editing { pointer-events:auto; cursor:move; background:rgba(225,29,72,.10); border-style:solid; }
   #vguide { position:absolute; top:0; bottom:0; width:0; border-left:1px dashed #e11d48; display:none; }
-  .sample-bar { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; justify-content:center; background:#fff; border-radius:12px; padding:10px 12px; }
-  .sample-bar .field { margin:0; width:140px; }
-  .sample-bar .field > span { font-size:12px; }
   .work > .btns { justify-content:center; width:min(560px,100%); }
   .work > .btns button { flex:1; background:var(--fill-hover); min-height:42px; }
   .work > .btns button:hover { background:#dcdfe3; }
@@ -170,21 +189,24 @@
       <p class="lead">배경을 고르고 글자를 넣습니다. 명찰의 글자를 누르면 오른쪽에서 고칠 수 있습니다.</p>
       <h3 class="sub-h">배경</h3>
       <div class="btns">
-        <button id="btn-bg">이미지 선택</button>
-        <button id="btn-bg-del" class="danger">이미지 제거</button>
+        <button id="btn-bg" class="primary">이미지 선택</button>
+        <button id="btn-bg-del">이미지 제거</button>
         <input type="file" id="bg-file" accept="image/*" hidden>
       </div>
       <div id="bg-info" class="muted" style="margin-top:6px"></div>
-      <label class="field" style="margin-top:8px"><span>이미지 맞춤</span>
+      <details class="adv"><summary>이미지 위치·색 조정</summary>
+      <label class="field"><span>이미지 맞춤</span>
         <select data-bg="fit"><option value="cover">꽉 채우기 (잘릴 수 있음)</option><option value="contain">전체 보이기 (여백 생김)</option><option value="fill">늘려서 채우기</option></select></label>
       <label class="field"><span>이미지 위치 — 가로 <b id="posx-v"></b>%</span><input type="range" data-bg="posX" min="0" max="100"></label>
       <label class="field"><span>이미지 위치 — 세로 <b id="posy-v"></b>%</span><input type="range" data-bg="posY" min="0" max="100"></label>
       <div class="row">
         <label class="field"><span>배경색</span><input type="color" data-bg="color"></label>
-        <label class="field"><span>덧씌울 색</span><input type="color" data-bg="overlay"></label>
+        <label class="field"><span>겹칠 색</span><input type="color" data-bg="overlay"></label>
       </div>
-      <label class="field"><span>덧씌우기 진하기 <b id="ov-v"></b>% (글자가 잘 보이게 배경을 어둡게/밝게)</span><input type="range" data-bg="overlayOpacity" min="0" max="0.9" step="0.05"></label>
-      <div id="ink-warn" class="warn" hidden>배경이 어둡습니다. 잉크젯에서는 잉크를 많이 쓰고 출력이 느려집니다. 행사 전에 한 장 뽑아 색과 속도를 확인하세요.</div>
+      <label class="field"><span>겹칠 색 진하기 <b id="ov-v"></b>%</span><input type="range" data-bg="overlayOpacity" min="0" max="0.9" step="0.05"></label>
+      <div class="muted">글자가 잘 안 보이면 겹칠 색과 진하기로 배경을 어둡거나 밝게 하세요.</div>
+      </details>
+      <div id="ink-warn" class="warn" hidden>배경이 어두워 잉크를 많이 씁니다. 행사 전에 한 장 뽑아 확인하세요.</div>
     
       <h3 class="sub-h">글자·QR 넣기</h3>
       <div class="btns" id="add-btns">
@@ -194,13 +216,19 @@
         <button data-add="title">＋ 직책</button>
         <button data-add="text">＋ 고정 문구</button>
         <button data-add="qr">＋ 개인 QR</button>
-        <select id="add-extra" style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px"><option value="">＋ 추가 항목…</option></select>
+        <select id="add-extra" style="font:inherit;padding:6px 8px;border:1px solid var(--input);border-radius:8px"><option value="">＋ 추가 항목…</option></select>
       </div>
-      <div class="muted" style="margin-top:6px">개인 QR: 찍으면 참가자 카드(명함 교환)가 열리고, 스태프는 PIN으로 출석 체크합니다.</div>
+      <div class="muted" style="margin-top:6px">개인 QR을 찍으면 참가자 카드가 열립니다.</div>
       
       <h3 class="sub-h">요소 목록 <span class="muted">아래일수록 위에 그려짐</span></h3>
       <ul class="layers" id="layers"></ul>
     
+      <details class="adv"><summary>미리보기 이름 바꿔 보기</summary>
+        <label class="field"><span>소속</span><input id="s-org"></label>
+        <label class="field"><span>성명</span><input id="s-name"></label>
+        <label class="field"><span>직책</span><input id="s-title"></label>
+        <button id="btn-long">긴 글자 테스트</button>
+      </details>
       <details class="adv"><summary>명찰 크기 바꾸기 (mm)</summary>
       <div class="row">
         <label class="field"><span>가로</span><input id="sz-w" type="number" min="30" max="200" step="0.5"></label>
@@ -223,18 +251,19 @@
           <select id="lb-stock"></select></label>
         <div id="lb-info" class="muted" style="margin:-2px 0 8px"></div>
         <div id="lb-rec"></div>
-        <div class="row">
-          <label class="field"><span>라벨 X (mm)</span><input id="lb-x" type="number" step="0.5"></label>
-          <label class="field"><span>라벨 Y (mm)</span><input id="lb-y" type="number" step="0.5"></label>
-        </div>
         <div class="btns">
           <button id="btn-lb-edit">라벨 위치 옮기기</button>
           <button id="btn-lb-center">↔ 가로 가운데</button>
         </div>
         <label class="check"><input type="checkbox" id="lb-with" checked> 라벨 안의 글자(성명·소속·직책)도 같이 이동</label>
-        <div class="muted">점선 위의 빨간 이름표를 끌거나, [라벨 위치 옮기기]를 누른 뒤 점선 안 아무 곳이나 끌어서 옮기세요. 이 상태에서는 방향키로 0.5mm(Shift 5mm)씩 움직입니다.</div>
-        <div class="muted" style="margin-top:6px">빨간 점선이 라벨이 붙을 자리입니다. 배경의 흰 칸 안에 오도록 맞추세요.
-          점선 <b>안</b>의 요소만 라벨에 인쇄되고, 점선 <b>밖</b>의 행사명·고정 문구는 배경 명찰에 미리 인쇄됩니다.</div>
+        <div class="muted">빨간 점선이 라벨이 붙을 자리입니다. 배경의 흰 칸 안에 오도록 빨간 이름표를 끌어 맞추세요.</div>
+        <details class="adv"><summary>자세히 · 숫자로 입력</summary>
+        <div class="row">
+          <label class="field"><span>라벨 X (mm)</span><input id="lb-x" type="number" step="0.5"></label>
+          <label class="field"><span>라벨 Y (mm)</span><input id="lb-y" type="number" step="0.5"></label>
+        </div>
+        <div class="muted">[라벨 위치 옮기기]를 누르면 점선 안 아무 곳이나 끌 수 있고, 방향키로 0.5mm(Shift 5mm)씩 움직입니다.<br>점선 안의 글자만 라벨에 인쇄되고, 밖의 글자는 배경 명찰에 미리 인쇄됩니다.</div>
+        </details>
         <div id="lb-warn" class="warn" hidden></div>
       </div>
     
@@ -243,7 +272,7 @@
     <div class="pane" data-pane="form">
       <h2>등록 폼</h2>
       <p class="lead">참가자가 QR을 찍고 입력할 항목입니다.</p>
-      <div class="muted" style="margin-bottom:8px">QR 등록 폼에 받을 항목입니다. 성명은 항상 필수입니다.</div>
+      <div class="muted" style="margin-bottom:8px">성명은 항상 필수입니다.</div>
       <div class="row">
         <label class="field"><span>소속</span><select id="fm-org"><option value="required">필수</option><option value="optional">선택</option><option value="hidden">받지 않음</option></select></label>
         <label class="field"><span>직책</span><select id="fm-title"><option value="optional">선택</option><option value="required">필수</option><option value="hidden">받지 않음</option></select></label>
@@ -255,16 +284,16 @@
         <button id="fm-add-email">＋ 이메일</button>
         <button id="fm-add-kind">＋ 소속 구분</button>
       </div>
-      <div class="muted" style="margin-top:6px">'명함 공개'를 켠 항목은 참가자가 동의한 경우에만 명찰 QR 카드에 보입니다. 추가 항목은 명찰에도 넣을 수 있습니다(요소 추가 → 추가 항목).</div>
+      <div class="muted" style="margin-top:6px">'명함 공개'를 켠 항목은 참가자가 동의해야 QR 카드에 보입니다.</div>
     
     </div>
 
     <div class="pane" data-pane="ops">
       <h2>현장 운영</h2>
       <p class="lead">명찰 개인 QR로 세션별 출석을 체크할 때 씁니다.</p>
-      <label class="field"><span>세션 (한 줄에 하나, 비우면 '전체' 한 가지)</span><textarea id="op-sessions" rows="3" style="width:100%;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px" placeholder="예:&#10;오전 기조강연&#10;오후 네트워킹"></textarea></label>
+      <label class="field"><span>세션 (한 줄에 하나, 비우면 '전체' 한 가지)</span><textarea id="op-sessions" rows="3" style="width:100%;font:inherit;padding:6px 8px;border:1px solid var(--input);border-radius:7px" placeholder="예:&#10;오전 기조강연&#10;오후 네트워킹"></textarea></label>
       <label class="field"><span>스태프 PIN (4~8자리 숫자, 비우면 출석 체크 끔)</span><input id="op-pin" inputmode="numeric" maxlength="8" placeholder="예: 2468"></label>
-      <div class="muted">스태프가 휴대폰으로 명찰 QR을 찍고 PIN을 넣으면 그 세션 출석으로 기록됩니다. 결과는 대시보드·엑셀 내보내기에 나옵니다.</div>
+      <div class="muted">스태프가 명찰 QR을 찍고 PIN을 넣으면 출석으로 기록됩니다.</div>
     
     </div>
 
@@ -282,11 +311,47 @@
 
   <!-- 가운데: 명찰 -->
   <div class="work">
-    <div class="sample-bar">
-      <label class="field"><span>미리보기 소속</span><input id="s-org"></label>
-      <label class="field"><span>미리보기 성명</span><input id="s-name"></label>
-      <label class="field"><span>미리보기 직책</span><input id="s-title"></label>
-      <button id="btn-long">긴 글자 테스트</button>
+    <!-- 요소를 선택하면 나오는 가로 도구막대 -->
+    <div class="ctxbar" id="props">
+      <b class="ctx-title" id="props-title" hidden></b>
+      <div class="ctx-empty" id="props-empty"><i data-ic="pointer"></i> 명찰의 글자나 QR을 누르면 여기서 바로 고칠 수 있습니다</div>
+      <div class="ctx-body" id="props-body" hidden>
+        <label id="text-row" class="ctx-text"><input data-k="text" maxlength="80" placeholder="고정 문구"></label>
+        <select data-k="font" id="font-sel" title="글꼴"></select>
+        <span class="stepper" title="글자 크기 (mm)"><button type="button" data-size="-0.5" aria-label="작게">−</button><input data-k="size" type="number" step="0.5" min="1"><button type="button" data-size="0.5" aria-label="크게">＋</button></span>
+        <label class="swatch" title="글자색"><input data-k="color" type="color"></label>
+        <select title="굵기" data-k="weight"><option value="400">보통</option><option value="500">약간 굵게</option><option value="700">굵게</option><option value="800">더 굵게</option><option value="900">가장 굵게</option></select>
+        <span class="seg" id="align-seg">
+          <button type="button" data-align="left" title="왼쪽 정렬"><i data-ic="alignL"></i></button>
+          <button type="button" data-align="center" title="가운데 정렬"><i data-ic="alignC"></i></button>
+          <button type="button" data-align="right" title="오른쪽 정렬"><i data-ic="alignR"></i></button>
+        </span>
+        <span hidden><select data-k="align"><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></select></span>
+        <span class="vsep"></span>
+        <button id="btn-center-x" title="명찰 가로 가운데로">가운데로</button>
+        <button id="btn-dup">복제</button>
+        <details class="ctx-more" id="ctx-more"><summary>더보기</summary>
+          <div class="pop">
+            <label class="field"><span>내용</span><select data-k="field"><option value="event">행사명</option><option value="org">소속</option><option value="name">성명</option><option value="title">직책</option><option value="text">고정 문구</option><option value="qr">개인 QR</option></select></label>
+            <div class="row">
+              <label class="field"><span>세로 정렬</span><select data-k="valign"><option value="top">위</option><option value="middle">가운데</option><option value="bottom">아래</option></select></label>
+              <label class="field"><span>자간(em)</span><input data-k="spacing" type="number" step="0.01"></label>
+            </div>
+            <label class="check"><input type="checkbox" data-k="wrap"> 길면 줄바꿈 (끄면 한 줄로 줄임)</label>
+            <div class="row">
+              <label class="field"><span>X</span><input data-k="x" type="number" step="0.5"></label>
+              <label class="field"><span>Y</span><input data-k="y" type="number" step="0.5"></label>
+              <label class="field"><span>너비</span><input data-k="w" type="number" step="0.5" min="2"></label>
+              <label class="field"><span>높이</span><input data-k="h" type="number" step="0.5" min="2"></label>
+            </div>
+            <div class="btns"><button id="btn-front">맨 앞으로</button><button id="btn-back">맨 뒤로</button></div>
+          </div>
+        </details>
+        <button id="btn-del" class="quiet">삭제</button>
+      </div>
+    </div>
+    <div class="page-head">
+      <span><b>명찰</b> <span id="page-size"></span></span>
       <label class="check"><input type="checkbox" id="guides" checked> 요소 테두리 표시</label>
     </div>
     <div id="stage-wrap">
@@ -304,50 +369,9 @@
       <button id="btn-print">테스트 인쇄 (출력 PC 용지 설정 기준)</button>
       <button id="btn-print-bg" hidden>배경 명찰 테스트 인쇄</button>
     </div>
-    <div class="muted" style="margin-top:8px;text-align:center">요소를 끌어서 옮기고, 모서리 점으로 크기 조절 · 방향키 0.5mm 이동(Shift+방향키 5mm) · Delete 삭제<br>글자가 상자보다 길면 인쇄할 때 자동으로 작아집니다.</div>
+    <div class="muted hint-line">끌어서 옮기기 · 모서리로 크기 조절 · 방향키 0.5mm(Shift 5mm) · Delete 삭제</div>
   </div>
 
-  <!-- 오른쪽: 선택한 요소 -->
-  <aside class="props" id="props">
-    <h2 id="props-title">선택한 요소</h2>
-      <div id="props-empty" class="props-empty"><div class="big"><i data-ic="pointer"></i></div>가운데 명찰에서 글자나 QR을 누르면<br>여기서 크기·색·정렬을 고칠 수 있습니다.</div>
-      <div id="props-body" hidden>
-        <label class="field"><span>내용</span>
-          <select data-k="field"><option value="event">행사명</option><option value="org">소속</option><option value="name">성명</option><option value="title">직책</option><option value="text">고정 문구</option><option value="qr">개인 QR</option></select></label>
-        <label class="field" id="text-row"><span>고정 문구</span><input data-k="text" maxlength="80"></label>
-        <label class="field"><span>글꼴</span><select data-k="font" id="font-sel"></select></label>
-        <div class="row">
-          <label class="field"><span>글자 크기(mm)</span><input data-k="size" type="number" step="0.5" min="1"></label>
-          <label class="field"><span>굵기</span>
-            <select data-k="weight"><option value="400">보통</option><option value="500">약간 굵게</option><option value="700">굵게</option><option value="800">더 굵게</option><option value="900">가장 굵게</option></select></label>
-        </div>
-        <div class="row">
-          <label class="field"><span>글자색</span><input data-k="color" type="color"></label>
-          <label class="field"><span>자간(em)</span><input data-k="spacing" type="number" step="0.01"></label>
-        </div>
-        <div class="row">
-          <label class="field"><span>가로 정렬</span><select data-k="align"><option value="left">왼쪽</option><option value="center">가운데</option><option value="right">오른쪽</option></select></label>
-          <label class="field"><span>세로 정렬</span><select data-k="valign"><option value="top">위</option><option value="middle">가운데</option><option value="bottom">아래</option></select></label>
-        </div>
-        <label class="check"><input type="checkbox" data-k="wrap"> 길면 줄바꿈 (끄면 한 줄로 줄여서 맞춤)</label>
-<details class="adv"><summary>위치·크기 숫자로 입력 (mm)</summary>
-        <div class="row">
-          <label class="field"><span>X</span><input data-k="x" type="number" step="0.5"></label>
-          <label class="field"><span>Y</span><input data-k="y" type="number" step="0.5"></label>
-          <label class="field"><span>너비</span><input data-k="w" type="number" step="0.5" min="2"></label>
-          <label class="field"><span>높이</span><input data-k="h" type="number" step="0.5" min="2"></label>
-        </div>
-        </details>
-        <div class="btns">
-          <button id="btn-center-x">↔ 가로 가운데</button>
-          <button id="btn-dup">복제</button>
-          <button id="btn-front">맨 앞으로</button>
-          <button id="btn-back">맨 뒤로</button>
-          <button id="btn-del" class="danger">삭제</button>
-        </div>
-      </div>
-    
-  </aside>
 </main>
 
 <!-- 새 행사 -->
@@ -559,7 +583,7 @@ function renderLabelPanel() {
 
 function renderStage() {
   const wrapW = $('stage-wrap').clientWidth - 40;
-  const availH = Math.max(360, window.innerHeight - 240);
+  const availH = Math.max(360, window.innerHeight - 280);
   zoom = Math.min(wrapW / (design.w * PX), availH / (design.h * PX), 3.2);
   const host = $('badge-host');
   host.style.transform = `scale(${zoom})`;
@@ -567,6 +591,7 @@ function renderStage() {
   BadgeRender.fitAll(host);
   $('stage').style.width = design.w * PX * zoom + 'px';
   $('stage').style.height = design.h * PX * zoom + 'px';
+  $('page-size').textContent = `${design.w} × ${design.h} mm`;
   renderSel();
 }
 
@@ -588,8 +613,10 @@ function renderProps() {
   const e = selEl();
   $('props-empty').hidden = !!e;
   $('props-body').hidden = !e;
-  if (!e) { $('props-title').textContent = '선택한 요소'; return; }
-  $('props-title').textContent = '선택한 요소 · ' + fieldName(e.field);
+  $('props-title').hidden = !e;
+  if (!e) { $('ctx-more').open = false; return; }
+  $('props-title').textContent = fieldName(e.field);
+  $('align-seg').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.align === e.align));
   document.querySelectorAll('#props [data-k]').forEach(inp => {
     if (document.activeElement === inp) return;
     const v = e[inp.dataset.k];
@@ -724,6 +751,24 @@ document.querySelectorAll('#props [data-k]').forEach(inp => {
   inp.addEventListener(inp.type === 'checkbox' || inp.tagName === 'SELECT' ? 'change' : 'input', apply);
 });
 
+// 글자 크기 −/＋, 정렬 버튼: 같은 입력칸의 값을 바꿔서 위의 처리를 그대로 탄다
+document.querySelectorAll('.stepper [data-size]').forEach(b => { b.onclick = () => {
+  const inp = document.querySelector('#props [data-k="size"]');
+  if (!selEl()) return;
+  snapshot();
+  inp.value = Math.max(1, (Number(inp.value) || 0) + Number(b.dataset.size));
+  inp.dispatchEvent(new Event('input'));
+}; });
+$('align-seg').addEventListener('click', e => {
+  const b = e.target.closest('[data-align]');
+  if (!b) return;
+  const sel = document.querySelector('#props [data-k="align"]');
+  sel.value = b.dataset.align;
+  sel.dispatchEvent(new Event('change'));
+});
+// 더보기 창: 바깥을 누르면 닫기
+document.addEventListener('click', e => { if ($('ctx-more').open && !e.target.closest('#ctx-more')) $('ctx-more').open = false; });
+
 $('font-sel').innerHTML = BadgeRender.FONTS.map(f => `<option value="${f.id}">${esc(f.label)}</option>`).join('');
 
 $('btn-center-x').onclick = () => { const el = selEl(); if (el) change(() => { el.x = r05((design.w - el.w) / 2); }); };
@@ -774,11 +819,11 @@ function renderFormPanel() {
   if (!$('fm-fields').contains(document.activeElement)) {
     $('fm-fields').innerHTML = f.fields.map((x, i) => `<div class="fm-row" data-i="${i}" style="border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px">
       <div class="row">
-        <input data-fk="label" value="${esc(x.label)}" maxlength="30" placeholder="항목 이름" style="font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px">
+        <input data-fk="label" value="${esc(x.label)}" maxlength="30" placeholder="항목 이름" style="font:inherit;padding:6px 8px;border:1px solid var(--input);border-radius:7px">
         <select data-fk="type" style="font:inherit;padding:6px;border:1px solid var(--line);border-radius:7px;flex:0 0 92px">${Object.entries(TYPE_NAMES).map(([k, v]) => `<option value="${k}"${x.type === k ? ' selected' : ''}>${v}</option>`).join('')}</select>
         <button data-fdel title="항목 삭제" style="flex:0 0 auto">✕</button>
       </div>
-      ${x.type === 'select' ? `<input data-fk="options" value="${esc((x.options || []).join(', '))}" placeholder="선택지 (쉼표로 구분) 예: 참가자, 멘토, 스태프" style="width:100%;margin-top:6px;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:7px">` : ''}
+      ${x.type === 'select' ? `<input data-fk="options" value="${esc((x.options || []).join(', '))}" placeholder="선택지 (쉼표로 구분) 예: 참가자, 멘토, 스태프" style="width:100%;margin-top:6px;font:inherit;padding:6px 8px;border:1px solid var(--input);border-radius:7px">` : ''}
       <div style="display:flex;gap:14px;margin-top:6px">
         <label class="check" style="margin:0"><input type="checkbox" data-fk="required"${x.required ? ' checked' : ''}> 필수</label>
         ${x.type === 'tel' || x.type === 'email' ? `<label class="check" style="margin:0"><input type="checkbox" data-fk="share"${x.share ? ' checked' : ''}> 명함 공개 가능</label>` : ''}

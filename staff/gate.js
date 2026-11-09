@@ -27,7 +27,7 @@
   #gate h2 { margin:0 0 4px; font-size:20px; }
   #gate p { margin:0 0 18px; color:#565a63; font-size:13px; line-height:1.5; }
   #gate label { display:block; font-size:13px; font-weight:600; margin:12px 0 5px; }
-  #gate input { width:100%; box-sizing:border-box; font:inherit; font-size:16px; padding:11px 12px; border:1px solid #e6e8eb; border-radius:8px; }
+  #gate input { width:100%; box-sizing:border-box; font:inherit; font-size:16px; padding:11px 12px; border:1px solid #bfc4cc; border-radius:8px; }
   #gate input:focus { outline:2px solid #0e93a5; border-color:#0e93a5; }
   #gate button { width:100%; margin-top:18px; font:inherit; font-size:16px; font-weight:700; padding:13px; border:0; border-radius:12px; background:#0e93a5; color:#fff; cursor:pointer; }
   #gate button:disabled { opacity:.6; }

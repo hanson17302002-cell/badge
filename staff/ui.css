@@ -1,6 +1,6 @@
 /* 운영진 화면 공통 스타일 — 흰 상단 바 + 왼쪽 아이콘 탭 + 회색 작업 영역 + 청록 강조색 */
 :root {
-  --bg:#f1f3f5; --card:#fff; --line:#e6e8eb; --line2:#f1f3f5; --text:#16181d; --muted:#565a63; --faint:#868b94; --fill:#f1f3f5; --fill-hover:#e6e8eb;
+  --bg:#f1f3f5; --card:#fff; --line:#e6e8eb; --line2:#f1f3f5; --text:#16181d; --muted:#4c5058; --faint:#868b94; --fill:#f1f3f5; --fill-hover:#e6e8eb; --input:#bfc4cc;
   --accent:#0e93a5; --accent-hover:#0b7f8f; --accent-bg:#e6f6f8; --accent-text:#0b7f8f;
   --ok:#14804a; --ok-bg:#e6f6ec; --warn:#b45309; --warn-bg:#fff4df; --bad:#c62828; --bad-bg:#fdecec; --idle-bg:#e9ecef;
   --topbar:56px;
@@ -20,6 +20,8 @@ button.danger { background:var(--bad-bg); color:var(--bad); }
 button.danger:hover { background:#fbdcdc; }
 button.ghost { background:transparent; }
 button.ghost:hover { background:var(--fill); }
+button.quiet { background:transparent; color:var(--faint); }
+button.quiet:hover { background:var(--bad-bg); color:var(--bad); }
 button.sm { min-height:30px; padding:3px 10px; font-size:13px; }
 
 /* 입력칸 */

@@ -19,6 +19,9 @@
     qr: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h2v2h-2zM18 14h2M14 20h2M18 18h2v2',
     help: circle + 'M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .8-1 1.7M12 17h.01',
     pointer: 'M5 4l14 6-6 2-2 6z',
+    alignL: 'M4 6h16M4 12h10M4 18h13',
+    alignC: 'M4 6h16M7 12h10M5.5 18h13',
+    alignR: 'M4 6h16M10 12h10M7 18h13',
     lock: 'M6 11h12v9H6zM8.5 11V7.5a3.5 3.5 0 0 1 7 0V11',
     user: 'M12 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM5 20c1-3.5 3.6-5 7-5s6 1.5 7 5',
   };
